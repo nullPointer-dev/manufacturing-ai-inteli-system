@@ -1,0 +1,9 @@
+pandas
+numpy
+numpy-financial
+scikit-learn
+joblib
+streamlit
+plotly
+shap
+openpyxl

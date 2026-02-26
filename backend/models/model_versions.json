@@ -1,0 +1,30 @@
+[
+  {
+    "time": "2026-02-26T19:26:09.295930",
+    "reason": {
+      "high_anomaly_rate": false,
+      "high_energy_drift": true
+    },
+    "metrics": {
+      "mae": 40.81873626017536,
+      "rmse": 133.30082662221764,
+      "mape": 254.255721840493
+    },
+    "dataset_size": 60,
+    "model_version": 1
+  },
+  {
+    "time": "2026-02-27T01:45:31.868761",
+    "reason": {
+      "high_anomaly_rate": false,
+      "high_energy_drift": true
+    },
+    "metrics": {
+      "mae": 40.81873626017536,
+      "rmse": 133.30082662221764,
+      "mape": 254.255721840493
+    },
+    "dataset_size": 60,
+    "model_version": 2
+  }
+]
