@@ -4,14 +4,13 @@ from pathlib import Path
 from prediction_service import predict_batch
 from optimizer_auto import optimize_auto
 from optimizer_target import optimize_target
-from golden_updater import check_and_update_golden
+from golden_updater import check_and_update_golden, _safe_load, SESSION_FILE, HISTORY_FILE, clear_session_and_archive, get_archive
 from explainability_engine import get_global_feature_importance
 from learning_controller import check_and_retrain
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 MODEL_DIR = BASE_DIR / "models"
 VERSION_LOG = MODEL_DIR / "model_versions.json"
-REG_FILE = MODEL_DIR / "golden_registry.json"
 
 # =========================================================
 # PREDICTION
@@ -91,17 +90,24 @@ def api_accept_golden(best_row: dict,
 
 
 # =========================================================
-# GET GOLDEN REGISTRY
+# GET GOLDEN REGISTRY (SESSION)
 # =========================================================
 def api_get_golden():
-    if not REG_FILE.exists():
-        return {}
+    return _safe_load(SESSION_FILE, {})
 
-    try:
-        with open(REG_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {}
+
+# =========================================================
+# GET GOLDEN ARCHIVE (ALL HISTORY)
+# =========================================================
+def api_get_golden_archive():
+    return get_archive()
+
+
+# =========================================================
+# CLEAR SESSION AND ARCHIVE
+# =========================================================
+def api_clear_session():
+    return clear_session_and_archive()
 
 
 # =========================================================
@@ -141,6 +147,6 @@ def api_check_retrain():
 def api_system_status():
     return {
         "model_exists": (MODEL_DIR / "model.pkl").exists(),
-        "golden_registry_exists": REG_FILE.exists(),
+        "golden_session_exists": SESSION_FILE.exists(),
         "version_log_exists": VERSION_LOG.exists()
     }

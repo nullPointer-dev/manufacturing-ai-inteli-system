@@ -7,3 +7,6 @@ streamlit
 plotly
 shap
 openpyxl
+fastapi
+uvicorn[standard]
+pydantic

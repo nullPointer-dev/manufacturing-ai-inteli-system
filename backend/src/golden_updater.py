@@ -3,8 +3,9 @@ from pathlib import Path
 from datetime import datetime
 
 MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
-REG_FILE = MODEL_DIR / "golden_registry.json"
-HISTORY_FILE = MODEL_DIR / "golden_history.json"
+SESSION_FILE = MODEL_DIR / "golden_session.json"  # Current session
+ARCHIVE_FILE = MODEL_DIR / "golden_archive.json"   # Permanent history
+HISTORY_FILE = MODEL_DIR / "golden_history.json"   # Session events log
 
 IMPROVEMENT_THRESHOLD = 0.01  # 1%
 
@@ -103,7 +104,8 @@ def check_and_update_golden(
 
     score = float(best_row.get("Score", 0))
 
-    registry = _safe_load(REG_FILE, {})
+    # Use SESSION_FILE for current session
+    registry = _safe_load(SESSION_FILE, {})
 
     prev = _get_previous(registry, mode, cluster_id, scenario_key)
 
@@ -141,7 +143,7 @@ def check_and_update_golden(
         "co2": float(best_row.get("CO2", 0)),
     }
 
-    # Write registry
+    # Write to session registry
     saved_entry = _write_registry(
         registry,
         mode,
@@ -150,7 +152,7 @@ def check_and_update_golden(
         scenario_key
     )
 
-    with open(REG_FILE, "w") as f:
+    with open(SESSION_FILE, "w") as f:
         json.dump(registry, f, indent=2)
 
     # -----------------------------
@@ -190,7 +192,8 @@ def check_if_better(
 
     score = float(best_row.get("Score", 0))
 
-    registry = _safe_load(REG_FILE, {})
+    # Check against current session
+    registry = _safe_load(SESSION_FILE, {})
 
     prev = _get_previous(registry, mode, cluster_id, scenario_key)
 
@@ -203,3 +206,55 @@ def check_if_better(
         return True
 
     return False
+
+
+# =========================================================
+# CLEAR SESSION & ARCHIVE
+# =========================================================
+def clear_session_and_archive():
+    """
+    Moves current session golden signatures to archive
+    and clears the session file.
+    """
+    session_data = _safe_load(SESSION_FILE, {})
+    
+    if not session_data:
+        return {"status": "no_session_data"}
+    
+    # Load existing archive
+    archive = _safe_load(ARCHIVE_FILE, {})
+    
+    # Add timestamp to session data before archiving
+    timestamp = datetime.now().isoformat()
+    
+    if "archived_sessions" not in archive:
+        archive["archived_sessions"] = []
+    
+    archive["archived_sessions"].append({
+        "timestamp": timestamp,
+        "golden_signatures": session_data
+    })
+    
+    # Save to archive
+    with open(ARCHIVE_FILE, "w") as f:
+        json.dump(archive, f, indent=2)
+    
+    # Clear session file
+    with open(SESSION_FILE, "w") as f:
+        json.dump({}, f, indent=2)
+    
+    # Clear session history
+    with open(HISTORY_FILE, "w") as f:
+        json.dump([], f, indent=2)
+    
+    return {"status": "success", "archived_count": len(session_data)}
+
+
+# =========================================================
+# GET ARCHIVE
+# =========================================================
+def get_archive():
+    """
+    Returns all archived golden signatures from previous sessions.
+    """
+    return _safe_load(ARCHIVE_FILE, {})

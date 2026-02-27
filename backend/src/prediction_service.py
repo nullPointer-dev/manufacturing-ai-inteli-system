@@ -27,15 +27,64 @@ def predict_batch(input_params: dict):
     Returns:
     Quality, Yield, Performance, Energy, CO2
     + raw chemistry metrics
+    
+    Handles missing features by providing reasonable defaults.
     """
 
     model, feature_cols = _load_model()
 
     df = pd.DataFrame([input_params])
-
-    missing = [c for c in feature_cols if c not in df.columns]
-    if missing:
-        raise KeyError(f"Missing required features: {missing}")
+    
+    # Fill missing features with reasonable defaults
+    defaults = {
+        # Production parameters
+        'Granulation_Time': 30.0,
+        'Binder_Amount': 10.0,
+        'Drying_Temp': 60.0,
+        'Drying_Time': 120.0,
+        'Lubricant_Conc': 1.0,
+        'Moisture_Content': 2.0,
+        
+        # Process metrics
+        'max_power_consumption': df.get('avg_power_consumption', [60.0])[0] * 1.5 if 'avg_power_consumption' in df.columns else 60.0,
+        'max_temperature': df.get('avg_temperature', [30.0])[0] * 1.2 if 'avg_temperature' in df.columns else 30.0,
+        'avg_vibration': 0.5,
+        'number_of_phases': 8.0,
+        
+        # Phase durations (minutes)
+        'duration_blending': 15.0,
+        'duration_coating': 30.0,
+        'duration_compression': 45.0,
+        'duration_drying': 120.0,
+        'duration_granulation': 30.0,
+        'duration_milling': 20.0,
+        'duration_preparation': 10.0,
+        'duration_quality_testing': 15.0,
+        
+        # Engineered features (computed from inputs where possible)
+        'energy_per_tablet': (df.get('total_process_time', [120.0])[0] * df.get('avg_power_consumption', [50.0])[0] / 60.0) / df.get('Tablet_Weight', [500.0])[0] if 'Tablet_Weight' in df.columns and df.get('Tablet_Weight', [500.0])[0] != 0 else 0.3,
+        'process_efficiency': 0.5,
+        'quality_score': 70.0,
+        'stability_index': 0.15,
+        'temperature_pressure_ratio': df.get('avg_temperature', [25.0])[0] / df.get('avg_pressure', [1.5])[0] if 'avg_pressure' in df.columns and df.get('avg_pressure', [1.5])[0] != 0 else 16.7,
+        'energy_efficiency_score': 0.0,
+        'process_intensity': df.get('total_process_time', [120.0])[0] * df.get('avg_power_consumption', [50.0])[0] if 'total_process_time' in df.columns and 'avg_power_consumption' in df.columns else 6000.0,
+        'equipment_load': df.get('Machine_Speed', [50.0])[0] * df.get('Compression_Force', [15.0])[0] if 'Machine_Speed' in df.columns and 'Compression_Force' in df.columns else 750.0,
+        
+        # Z-scores (neutral defaults)
+        'Hardness_zscore': 0.0,
+        'Dissolution_Rate_zscore': 0.0,
+        'Content_Uniformity_zscore': 0.0,
+        'total_energy_zscore': 0.0,
+    }
+    
+    # Fill missing columns with defaults
+    for col in feature_cols:
+        if col not in df.columns:
+            if col in defaults:
+                df[col] = defaults[col]
+            else:
+                df[col] = 0.0  # fallback for any unexpected features
 
     df = df[feature_cols]
 
