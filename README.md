@@ -1,146 +1,294 @@
-# 🏭 Manufacturing AI Intelligence System
+# Manufacturing AI Intelligence System
 
-> **AI-Driven Adaptive Multi-Objective Optimization for Industrial Batch Processes**  
-> Real-time energy pattern analytics, asset reliability monitoring, and carbon management
+> **AI-Driven Adaptive Multi-Objective Optimization for Industrial Batch Processes**
+> Real-time energy analytics, asset reliability monitoring, predictive quality control, and continuous model governance — all in one integrated platform.
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178c6.svg)](https://www.typescriptlang.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688.svg)](https://fastapi.tiangolo.com/)
 
-## 📋 Table of Contents
+---
+
+## Table of Contents
 
 - [Overview](#overview)
-- [Key Features](#key-features)
+- [System Pages & Features](#system-pages--features)
+- [Backend Engine](#backend-engine)
 - [Architecture](#architecture)
+- [Data Pipeline](#data-pipeline)
 - [Quick Start](#quick-start)
-- [Demo Video](#demo-video)
-- [Hackathon Alignment](#hackathon-alignment)
+- [API Reference](#api-reference)
 - [Technology Stack](#technology-stack)
-- [Documentation](#documentation)
+- [Project Structure](#project-structure)
 
 ---
 
-## 🎯 Overview
+## Overview
 
-This system addresses the critical challenge of **batch-level energy optimization** in manufacturing through:
+This system ingests batch-level manufacturing data from two Excel sources — **production quality records** and **process time-series sensor logs** — and provides a complete AI intelligence layer on top:
 
-- **Multi-objective NSGA-II optimization** balancing Quality, Yield, Performance, Energy, and CO₂
-- **Golden signature management** with human-in-the-loop workflow for continuous improvement
-- **Context-aware clustering** for different operational regimes
-- **Energy pattern intelligence** revealing asset health and process reliability
-- **Adaptive target setting** aligned with regulatory and ESG requirements
-- **Real-time drift detection** with automatic model retraining
+- A **multi-target ML model** predicts quality, yield, performance, energy, and CO₂ simultaneously
+- A **NSGA-II genetic optimizer** finds Pareto-optimal process parameters across all five objectives
+- A **Golden Signature registry** encodes the best known batch configurations per scenario and context cluster
+- A **human-in-the-loop approval workflow** lets engineers accept or reject AI-proposed parameter changes
+- An **energy intelligence engine** classifies every batch by reliability state and attributes causes to specific assets
+- An **anomaly detection engine** flags statistically unusual batches using Isolation Forest
+- A **correction engine** compares live batches to the golden signature and recommends actionable parameter corrections
+- A **model governance layer** tracks model versions, detects drift, and retrains automatically when data distribution shifts
 
-**Primary Track**: Track B (Optimization Engine Specialization)  
-**Secondary Track**: Track A (Predictive Modeling Specialization)
-
----
-
-## ✨ Key Features
-
-### 🎯 Track B: Optimization Engine (Primary)
-
-#### ✅ Golden Signature Framework
-- **5 preset scenarios**: Balanced, Eco, Quality, Yield, Performance
-- **Custom weight scenarios** with MD5-based isolation
-- **Cluster-aware storage**: Separate signatures per operational context
-- **Improvement threshold**: 1% minimum gain for golden updates
-- **Historical audit trail**: Complete update history with metrics
-
-#### ✅ Continuous Learning
-- **Automatic golden updates** when optimization exceeds benchmarks
-- **Human-in-the-loop approval**: User can accept or reject proposals
-- **Self-improving system**: Learns from production performance
-- **Decision memory**: Stores all human decisions for future reuse
-
-#### ✅ Adaptive Optimization
-- **Real-time parameter optimization**: NSGA-II multi-objective algorithm
-- **Dynamic goal setting**: Target-based constraints (CO₂ reduction, min quality/yield)
-- **Context-adaptive**: Respects operational cluster boundaries
-- **Reliability gating**: Filters unstable solutions
-
-### 🧠 Track A: Predictive Modeling (Secondary)
-
-#### ✅ Advanced Multi-Target Prediction
-- **6 simultaneous predictions**: Hardness, Dissolution, Uniformity, Yield, Performance, Energy
-- **>90% accuracy potential**: RandomForest MultiOutputRegressor
-- **Real-time forecasting**: Batch-level prediction API
-
-#### ✅ Energy Pattern Intelligence
-- **Asset reliability insights**: Detects Efficiency Loss, Process Instability, Calibration Gains
-- **Power consumption analysis**: Rolling statistics and drift detection
-- **Predictive maintenance flags**: Early warnings for equipment issues
-
-### 🌐 Universal Features
-
-- **Industrial ROI calculator** with adjustable assumptions
-- **Adaptive carbon alignment** with regulatory scenario support
-- **Model governance dashboard** with drift monitoring
-- **Feature importance analysis** for explainability
-- **Version tracking** with automatic retraining
-- **Integration APIs** for seamless system connectivity
+All components are exposed through a FastAPI REST backend and consumed by a React + TypeScript dashboard with 7 purpose-built pages.
 
 ---
 
-## 🏗️ Architecture
+## System Pages & Features
 
-### System Components
+### 1. Dashboard
+
+The real-time operational overview page.
+
+- **Key metric cards**: Quality Score, Content Uniformity (Yield), Performance Score, Energy (kWh), CO₂ Emissions (kg) — each showing current batch-level averages and trend direction
+- **Anomaly summary card**: Live count of flagged batches with contamination rate and one-click navigation to the Anomaly page
+- **Production Performance Trends chart**: Line chart showing Quality, Energy, Performance, and Content Uniformity over the most recent batches
+- All cards refreshed on a 30–120 second polling cycle via React Query
+
+### 2. Real-Time Batch Prediction
+
+Input any combination of process parameters and get immediate AI predictions.
+
+- **Input form**: All process parameters (Granulation Time, Binder Amount, Compression Force, Machine Speed, Moisture Content, etc.)
+- **Quality Metrics card**: Overall Quality score, Hardness, Dissolution Rate, Content Uniformity, Yield %, Performance %
+- **Energy & Emissions card**: Predicted energy consumption (kWh) and CO₂ emissions (kg)
+- **AI Insight**: Contextual plain-English summary of the predicted batch quality and energy profile
+- Powered by the trained **MultiOutputRegressor** (6 simultaneous targets)
+
+### 3. Multi-Objective Optimization
+
+AI-driven parameter optimization with human approval workflow.
+
+**Optimization Mode Selection**
+- 5 preset optimization scenarios: **Balanced**, **Eco** (energy-focused), **Quality**, **Yield**, **Performance**
+- **Custom** mode with per-objective weight sliders (Quality, Yield, Performance, Energy, CO₂ each 0–100%)
+
+**Target Constraints (optional)**
+- Minimum required CO₂ reduction %
+- Minimum quality, yield, and performance floor values
+- When set, the optimizer only returns solutions that satisfy all hard constraints
+
+**Results Panel — Optimal Solution**
+- Primary KPIs: Quality, Yield, Performance, Energy Used (kWh), CO₂ Emissions (kg)
+- Performance metrics: Hardness, Dissolution Rate, Content Uniformity, Friability
+- Process parameters table: all 10 key production parameters at their optimized values
+- Energy & Efficiency section: energy per tablet, efficiency score, process efficiency, equipment load
+- Process Timing breakdown: granulation, drying, compression, coating durations
+- Process Conditions: average power, temperature, pressure, vibration
+- Advanced Scores: yield score, performance score, stability index, process intensity
+
+**Pareto Front Chart**
+- Interactive scatter plot across all non-dominated solutions
+- Color-coded by quality score; hover to inspect any point
+
+**Golden Signature Proposals**
+- After optimization, the system proposes updating the golden signature for the active scenario
+- Shows current vs. proposed parameter ranges with % change indicators
+- One-click **Accept** or **Reject** — recorded in the audit trail
+- Rejection form captures reason (suboptimal, infeasible, too conservative, domain knowledge override)
+
+### 4. Golden Signature Management
+
+The central knowledge registry for what "a good batch" looks like.
+
+- **Active session card**: Current scenario, cluster context, golden score, and improvement since baseline
+- **Parameter range table**: For each process parameter — current value, golden min/max range, whether it is in-range (green tick) or out-of-range (warning)
+- **Scenario switcher**: Toggle between Balanced, Eco, Quality, Yield, Performance scenarios — each maintains its own independent golden registry
+- **Golden Update History timeline**: Chronological list of all accepted golden updates with timestamps, reason, and metric deltas (quality, energy, CO₂ before/after)
+- **Clear session**: Reset the active golden session to force a fresh baseline on next optimization run
+
+**Behind the scenes:** The golden registry uses KMeans context clustering (k=2) to maintain separate signatures for different operational regimes. A proposed update is only accepted if it represents at least a 1% improvement in the weighted fitness score over the current golden.
+
+### 5. Anomaly Detection & Asset Reliability
+
+Statistical anomaly detection with root-cause attribution.
+
+**Summary Cards**
+- Total anomalies detected, contamination rate %, low/medium/high risk breakdown
+
+**Anomaly Scatter Plot**
+- 2D scatter: Energy Consumption vs Quality Score, z-axis = anomaly score (bubble size)
+- Color: green (normal) vs red (anomalous)
+- Risk level legend (Low / Medium / High)
+
+**Actionable Batches Table**
+- Filtered to show only non-stable batches (batches in normal operation are excluded)
+- Columns: Batch ID, Asset Reliability State, Root Cause, Recommended Maintenance Action
+- Reliability states: **Efficiency Loss**, **Process Instability**, **Calibration Gain**
+- Root causes are diagnosed per batch by comparing sensor readings against dataset percentile thresholds:
+  - Efficiency Loss → high equipment load, elevated temperature, excess pressure, abnormal power draw
+  - Process Instability → high moisture, speed variance, elevated vibration, excess compression force
+  - Calibration Gain → below-baseline power or speed (under-processing risk)
+- Empty state banner shown when all batches are in stable normal operation
+
+### 6. Batch Correction Engine
+
+Parameter-level correction recommendations for any specific batch.
+
+- **Batch selector**: Choose any batch ID from the dataset
+- **Correction report table**: For every process parameter — current value vs golden mean, drift (in standard deviations), severity (OK / Moderate / Critical), whether the correction is beneficial, and the recommended adjustment
+- **Expected impact**: Model-simulated quality delta when correcting each parameter toward the golden mean
+- Parameters are ranked by severity so the most impactful corrections appear first
+- Only corrections with a positive quality impact are marked as beneficial
+
+### 7. Model Governance & Drift Monitor
+
+Full model lifecycle visibility.
+
+**Metric header cards**
+- Current model version (v1, v2, …)
+- MAE, RMSE, average R², MAPE across all 6 prediction targets
+
+**Model Version History table**
+- Every model version with timestamp, trigger reason (high anomaly rate / high energy drift), metrics, and dataset size
+- When a new dataset is uploaded, previous version history is cleared automatically — no stale metrics from old data
+
+**Check Drift & Retrain button**
+- Compares current dataset statistics against the training baseline (energy mean shift > 10%, anomaly rate > 15%)
+- If drift is detected and cooldown period (6 hours) has passed, automatically retrains and logs a new version
+- Cooldown prevents excessive retraining when data is stable
+
+**Feature Importance chart**
+- SHAP-based global feature importance averaged across all 6 target estimators
+- Horizontal bar chart showing top contributing process parameters
+
+---
+
+## Backend Engine
+
+### Data Pipeline (`data_pipeline.py`)
+- Loads `batch_production_data.xlsx` (quality outcomes) and `batch_process_data.xlsx` (per-phase sensor time-series, one sheet per batch)
+- Strips the Summary sheet automatically
+- Aggregates time-series to batch-level features: mean/max power, total energy (kWh = Power × Time/60), phase durations, temperature, pressure, vibration statistics
+- Merges production outcomes with process features on Batch_ID
+- Derives engineered features: energy intensity, energy efficiency score, equipment load, process efficiency, instability score, quality score, yield score, performance score
+
+### ML Model (`train_model.py`)
+- **Algorithm**: `RandomForestRegressor` (100 trees) wrapped in `MultiOutputRegressor`
+- **Targets**: Hardness, Dissolution Rate, Content Uniformity, Yield Score, Performance Score, Total Energy
+- **Features**: All numeric process columns excluding targets
+- **Metrics**: MAE, RMSE, avg R², MAPE — saved to `model_metrics.json` and logged in `model_versions.json`
+- Saves `model.pkl` + `feature_columns.pkl` for consistent inference
+
+### NSGA-II Optimizer (`optimizer_nsga2.py`)
+- Initializes population from golden signature parameter ranges (realistic starting points)
+- Tournament selection, blend crossover (α=0.3), Gaussian mutation (σ=0.05)
+- Pareto non-domination sorting across (Quality, Yield, Performance, Energy, CO₂)
+- Energy values clamped to ±30% of historical mean to prevent unrealistic solutions
+- Filtered through **reliability gate** (rejects solutions scoring below the 20th percentile fitness)
+- Returns the top-ranked Pareto front solution plus all non-dominated alternatives
+
+### Energy Intelligence (`energy_intelligence.py`)
+- Classifies each batch into one of four reliability states using percentile thresholds:
+  - **Efficiency Loss**: energy drift > 80th percentile
+  - **Calibration Gain**: energy drift < 20th percentile
+  - **Process Instability**: instability score > 85th percentile
+  - **Stable**: none of the above
+- Diagnoses specific root causes per batch by checking which sensor readings exceed their respective percentile bounds
+- Computes rolling energy statistics, energy drift from moving average, and per-batch instability score
+
+### Anomaly Detection (`anomaly_detection.py`)
+- **Algorithm**: Isolation Forest (contamination = 10%)
+- Assigns anomaly score and binary flag to every batch
+- Classifies risk level into Low / Medium / High bins based on score distribution
+
+### Golden Signature (`golden_signature.py`, `golden_updater.py`)
+- Selects top 25% of batches by weighted fitness score for the active scenario
+- Applies KMeans (k=2) clustering to isolate the more homogeneous high-performing cluster
+- Computes parameter ranges (mean ± 1.5σ with minimum width floor) as the golden envelope
+- On proposed update: checks for ≥1% improvement; if passed, archives the old signature and writes the new one
+- Stores separate signatures per scenario × cluster key with full history in `golden_history.json`
+
+### Correction Engine (`correction_engine.py`)
+- For each parameter, computes z-score drift from the golden mean
+- Simulates a correction by setting the parameter to the golden mean and re-running the model
+- Reports impact estimate (predicted quality delta), severity, and whether the correction is net-beneficial
+
+### Model Governance (`model_governance.py`, `learning_controller.py`)
+- Saves drift baseline (energy mean, energy std, anomaly rate, sample count) at training time
+- On retrain check: computes energy mean shift and current anomaly rate; flags drift if either threshold exceeded
+- Enforces 6-hour cooldown between retrains
+- Appends structured version record to `model_versions.json` on each retrain
+
+### Explainability (`explainability_engine.py`)
+- Uses SHAP `TreeExplainer` on each target estimator inside `MultiOutputRegressor`
+- Computes mean absolute SHAP values per feature, averaged across all 6 targets
+- Returns ranked feature importance list for the governance dashboard
+
+---
+
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Frontend (React)                      │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │
-│  │Dashboard │ │Prediction│ │Optimizer │ │ Golden  │  │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘  │
-│                                                          │
-│      Zustand State          React Query Cache           │
-└──────────────────┬──────────────────────────────────────┘
-                   │ REST API
-┌──────────────────▼──────────────────────────────────────┐
-│              Backend (FastAPI + Python)                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │ Prediction   │  │ Optimization │  │  Golden      │  │
-│  │ Service      │  │ NSGA-II      │  │  Manager     │  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  │
-│                                                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │ Anomaly      │  │ Energy       │  │  Model       │  │
-│  │ Detection    │  │ Intelligence │  │  Governance  │  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  │
-└──────────────────┬──────────────────────────────────────┘
-                   │
-┌──────────────────▼──────────────────────────────────────┐
-│                   Data Layer                             │
-│  • Batch production data (Excel)                         │
-│  • Process time-series data (Excel)                      │
-│  • Trained ML models (.pkl)                              │
-│  • Golden registries (.json)                             │
-│  • Model versions & metrics (.json)                      │
-└──────────────────────────────────────────────────────────┘
-```
-
-### Data Flow
-
-```
-User Input → Frontend → API → Backend Logic → ML Models → Response
-                                    ↓
-                          Golden Registry Check
-                                    ↓
-                          Human Approval (if required)
-                                    ↓
-                          Update Golden Signature
+┌───────────────────────────────────────────────────────────┐
+│                     Browser (React + TS)                   │
+│   Dashboard │ Prediction │ Optimization │ GoldenSignature  │
+│   Anomaly   │ Correction │ Governance                      │
+│                                                            │
+│   React Query (server state)   Zustand (client state)     │
+└──────────────────────┬────────────────────────────────────┘
+                       │  HTTP REST
+┌──────────────────────▼────────────────────────────────────┐
+│                  FastAPI (port 8000)                       │
+│   /api/predict         /api/optimize/auto                  │
+│   /api/optimize/target /api/golden/accept                  │
+│   /api/anomalies       /api/asset-reliability              │
+│   /api/check_retrain   /api/feature-importance             │
+│   /api/data-files/upload  /api/rejections/log              │
+└──────────────────────┬────────────────────────────────────┘
+                       │
+┌──────────────────────▼────────────────────────────────────┐
+│                   Backend Modules                          │
+│  data_pipeline → feature_engineering → train_model        │
+│  golden_signature → golden_updater → correction_engine     │
+│  optimizer_nsga2 → optimizer_target → reliability_gate     │
+│  anomaly_detection → energy_intelligence                   │
+│  model_governance → learning_controller → explainability   │
+└──────────────────────┬────────────────────────────────────┘
+                       │
+┌──────────────────────▼────────────────────────────────────┐
+│                    Persistent Storage                      │
+│  backend/data/   batch_production_data.xlsx                │
+│                  batch_process_data.xlsx                   │
+│  backend/models/ model.pkl  feature_columns.pkl            │
+│                  model_metrics.json  model_versions.json   │
+│                  golden_session.json golden_archive.json   │
+│                  golden_history.json drift_baseline.json   │
+└───────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🚀 Quick Start
+## Data Pipeline
+
+The system expects two Excel files placed in `backend/data/`:
+
+| File | Content |
+|------|---------|
+| `batch_production_data.xlsx` | One row per batch — quality outcomes (Hardness, Dissolution Rate, Content Uniformity, etc.) |
+| `batch_process_data.xlsx` | Multiple sheets (one per batch) — time-series sensor readings (Power, Temperature, Pressure, Vibration, Phase) |
+
+When you upload a new pair via the **Governance** page upload endpoint, the system automatically:
+1. Classifies which file is production vs process data
+2. Backs up the previous files
+3. Wipes stale state (`model_versions.json`, `golden_session.json`, `drift_baseline.json`)
+4. Retrains the model on the new data from scratch
+
+---
+
+## Quick Start
 
 ### Prerequisites
 
-- **Python 3.8+** with pip
-- **Node.js 16+** with npm
-- **Git** (for cloning)
+- Python 3.8+
+- Node.js 16+
 
 ### One-Command Setup (Windows)
 
@@ -148,213 +296,132 @@ User Input → Frontend → API → Backend Logic → ML Models → Response
 .\start.ps1
 ```
 
-This automated script:
-1. ✅ Checks Python and Node.js
-2. ✅ Creates virtual environment
-3. ✅ Installs backend dependencies
-4. ✅ Installs frontend dependencies
-5. ✅ Trains initial model
-6. ✅ Starts Backend API (port 8000)
-7. ✅ Starts Frontend UI (port 3000)
+This script installs all dependencies, trains the initial model, and starts both servers.
 
 ### Manual Setup
 
-#### 1. Backend Setup
-
 ```bash
+# Backend
 cd backend
-
-# Create virtual environment
 python -m venv venv
-
-# Activate (Windows)
-venv\Scripts\activate
-
-# Activate (Linux/Mac)
-source venv/bin/activate
-
-# Install dependencies
+venv\Scripts\activate          # Windows
 pip install -r ../requirements.txt
+cd src
+python train_model.py          # trains initial model
+python backend_api.py          # starts on port 8000
 
-# Train initial model
-python src/train_model.py
-
-# Start API server
-python backend_api.py
-```
-
-#### 2. Frontend Setup
-
-```bash
+# Frontend (new terminal)
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
+npm run dev                    # starts on port 5173
 ```
 
-### Access Points
+### Access
 
-- 🌐 **Frontend UI**: http://localhost:3000
-- 🔌 **Backend API**: http://localhost:8000
-- 📚 **API Documentation**: http://localhost:8000/docs
-- 📖 **Alternative Docs**: http://localhost:8000/redoc
-
----
-
-## 🎥 Demo Video
-
-[TODO: Add demo video link]
-
-**Demo Script (5 minutes):**
-1. Dashboard overview (30s)
-2. Real-time prediction (45s)
-3. Run optimization + golden approval (2min)
-4. Custom scenario demonstration (1min)
-5. Model governance & registry (45s)
+| Service | URL |
+|---------|-----|
+| Frontend UI | http://localhost:5173 |
+| Backend API | http://localhost:8000 |
+| Swagger Docs | http://localhost:8000/docs |
 
 ---
 
-## 🏆 Hackathon Alignment
+## API Reference
 
-### Track B Requirements ✅
-
-| Requirement | Implementation | Evidence |
-|------------|----------------|----------|
-| Golden Signature Framework | Multi-scenario registry with cluster isolation | `golden_signature.py`, `golden_updater.py` |
-| Continuous Learning | Auto-updates when performance exceeds +1% | `check_and_update_golden()` function |
-| Adaptive Optimization | NSGA-II with real-time goals | `optimizer_nsga2.py`, `optimizer_target.py` |
-| Human-in-the-loop | Approve/reject workflow in UI | `Optimization.tsx` proposal cards |
-| Historical Tracking | Complete audit trail | `golden_history.json` |
-
-### Track A Requirements ✅
-
-| Requirement | Implementation | Evidence |
-|------------|----------------|----------|
-| Multi-Target Prediction | 6 outputs via MultiOutputRegressor | `train_model.py`, `prediction_service.py` |
-| Energy Pattern Analysis | Reliability state classification | `energy_intelligence.py` |
-| Real-Time Forecasting | REST API with <100ms response | `backend_api.py` `/api/predict` |
-| >90% Accuracy | R² tracking per target | `model_metrics.json` |
-
-### Universal Requirements ✅
-
-| Requirement | Implementation | Evidence |
-|------------|----------------|----------|
-| Adaptive Target Setting | Regulatory scenario support | Dashboard ROI calculator |
-| Integration APIs | 10+ REST endpoints | `backend_api.py`, `integration_api.py` |
-| Data Pipeline | Robust preprocessing | `data_pipeline.py`, `feature_engineering.py` |
-| Industrial Validation | Excel data ingestion | `data/` folder |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/predict` | Predict quality/energy for given parameters |
+| POST | `/api/optimize/auto` | Run NSGA-II for a given scenario mode |
+| POST | `/api/optimize/target` | Run NSGA-II with hard constraints |
+| GET | `/api/golden` | Get active golden signature |
+| POST | `/api/golden/accept` | Accept a proposed golden update |
+| GET | `/api/golden/archive` | Full golden update history |
+| POST | `/api/golden/clear` | Reset active golden session |
+| GET | `/api/anomalies` | Anomaly detection results |
+| GET | `/api/asset-reliability` | Reliability states + root causes |
+| GET | `/api/dashboard/stats` | Aggregated KPIs for dashboard |
+| GET | `/api/production-trends` | Batch trend time-series |
+| GET | `/api/model/history` | Model version history |
+| GET | `/api/feature-importance` | SHAP feature importance |
+| POST | `/api/check_retrain` | Trigger drift check + optional retrain |
+| POST | `/api/rejections/log` | Log a golden proposal rejection |
+| GET | `/api/rejections` | Rejection history |
+| POST | `/api/data-files/upload` | Upload new dataset pair |
+| GET | `/api/batches` | All batch records |
+| POST | `/api/batches/{id}/analyze` | Correction report for a batch |
+| GET | `/api/system/status` | System health check |
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
-### Backend
-- **Python 3.8+**: Core language
-- **FastAPI**: REST API framework
-- **scikit-learn**: ML models (RandomForest, Isolation Forest, K-Means)
-- **pandas/numpy**: Data processing
-- **joblib**: Model persistence
-
-### Frontend
-- **React 18**: UI framework
-- **TypeScript**: Type safety
-- **Vite**: Build tool
-- **Shadcn/ui + Radix UI**: Component library
-- **Tailwind CSS**: Styling
-- **Framer Motion**: Animations
-- **Zustand**: State management
-- **React Query**: Server state
-- **Recharts + Plotly.js**: Visualizations
-
-### Infrastructure
-- **uvicorn**: ASGI server
-- **CORS**: Cross-origin support
-- **JSON**: Data persistence
+| Layer | Technologies |
+|-------|-------------|
+| Backend language | Python 3.8+ |
+| API framework | FastAPI + uvicorn |
+| ML | scikit-learn (RandomForest, IsolationForest, KMeans), SHAP |
+| Data processing | pandas, numpy |
+| Model persistence | joblib |
+| Frontend framework | React 18 + TypeScript |
+| Build tool | Vite |
+| UI components | shadcn/ui + Radix UI + Tailwind CSS |
+| Animations | Framer Motion, GSAP |
+| State management | Zustand + React Query |
+| Charts | Recharts |
 
 ---
 
-## 📖 Documentation
-
-- **[SETUP_GUIDE.md](SETUP_GUIDE.md)**: Comprehensive setup instructions
-- **[QUICKSTART.md](QUICKSTART.md)**: Quick start scripts and troubleshooting
-- **[frontend/README.md](frontend/README.md)**: Frontend architecture and API integration
-- **[Backend Module Docs](backend/src/)**: Inline docstrings in all Python files
-
----
-
-## 📂 Project Structure
+## Project Structure
 
 ```
 manufacturing-ai-inteli-system/
 ├── backend/
-│   ├── src/                    # Python modules (15+ files)
-│   ├── data/                   # Excel data files
-│   ├── models/                 # Trained models & registries
-│   └── backend_api.py          # FastAPI server
-├── frontend/
 │   ├── src/
-│   │   ├── components/         # React components
-│   │   ├── pages/              # 7 main pages
-│   │   ├── store/              # Zustand stores
-│   │   ├── lib/                # API client & utils
-│   │   └── types/              # TypeScript types
-│   ├── external_ui_assets/     # Animated components
-│   └── package.json
-├── requirements.txt            # Python dependencies
-├── start.ps1                   # Automated setup script
+│   │   ├── backend_api.py          # FastAPI server + all route handlers
+│   │   ├── integration_api.py      # Business logic bridge layer
+│   │   ├── data_pipeline.py        # Excel ingestion + feature engineering
+│   │   ├── feature_engineering.py  # Derived metrics + scoring
+│   │   ├── train_model.py          # Model training + metrics
+│   │   ├── prediction_service.py   # Inference wrapper
+│   │   ├── batch_scorer.py         # Attach predictions to batch rows
+│   │   ├── optimizer_nsga2.py      # NSGA-II genetic optimizer
+│   │   ├── optimizer_auto.py       # Auto mode dispatcher
+│   │   ├── optimizer_target.py     # Constraint-based optimization
+│   │   ├── optimizer_core.py       # Core optimization utilities
+│   │   ├── core_fitness.py         # Multi-objective fitness function
+│   │   ├── golden_signature.py     # Golden cluster identification
+│   │   ├── golden_updater.py       # Registry write + history management
+│   │   ├── correction_engine.py    # Per-batch correction analysis
+│   │   ├── context_engine.py       # Operational cluster assignment
+│   │   ├── anomaly_detection.py    # Isolation Forest detection
+│   │   ├── energy_intelligence.py  # Reliability states + root causes
+│   │   ├── explainability_engine.py# SHAP feature importance
+│   │   ├── model_governance.py     # Drift detection logic
+│   │   ├── learning_controller.py  # Retrain orchestration + versioning
+│   │   ├── reliability_gate.py     # Solution quality filter
+│   │   └── scenario_utils.py       # Scenario helpers
+│   ├── data/                       # Excel input files
+│   └── models/                     # Trained models + JSON registries
+├── frontend/
+│   └── src/
+│       ├── pages/
+│       │   ├── Dashboard.tsx
+│       │   ├── Prediction.tsx
+│       │   ├── Optimization.tsx
+│       │   ├── GoldenSignature.tsx
+│       │   ├── Anomaly.tsx
+│       │   ├── Correction.tsx
+│       │   └── Governance.tsx
+│       ├── components/
+│       │   ├── dashboard/          # MetricCard, Gauge, GoldenTimeline
+│       │   ├── layout/             # Header, Sidebar, Layout
+│       │   └── ui/                 # Button, Card, Dialog, Slider, Table…
+│       ├── store/                  # Zustand: optimizationStore, systemStore
+│       ├── lib/                    # api.ts (all fetch calls), utils.ts
+│       └── types/                  # Shared TypeScript interfaces
+├── requirements.txt
+├── start.ps1
 ├── SETUP_GUIDE.md
 ├── QUICKSTART.md
-└── README.md                   # This file
+└── README.md
 ```
-
----
-
-## 🤝 Contributing
-
-This is a hackathon project. For production deployment:
-
-1. Add authentication & authorization
-2. Implement database backend (PostgreSQL/MongoDB)
-3. Add WebSocket support for real-time updates
-4. Implement comprehensive logging
-5. Add unit & integration tests
-6. Set up CI/CD pipeline
-7. Configure production CORS policies
-
----
-
-## 📄 License
-
-Proprietary - Manufacturing AI Intelligence System  
-Developed for Industrial AI Hackathon 2026
-
----
-
-## 👥 Team
-
-[Add team member names and roles]
-
----
-
-## 🙏 Acknowledgments
-
-- Problem statement provided by hackathon organizers
-- UI assets inspired by modern control room designs
-- Built with open-source technologies
-
----
-
-## 📞 Support
-
-For technical issues or questions:
-- Check [SETUP_GUIDE.md](SETUP_GUIDE.md)
-- Review API docs at http://localhost:8000/docs
-- Inspect browser console for frontend errors
-- Check backend logs in terminal
-
----
-
-**Built with ❤️ for Sustainable Manufacturing** 🌱🏭
