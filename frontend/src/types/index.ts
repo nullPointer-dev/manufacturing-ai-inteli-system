@@ -84,7 +84,8 @@ export interface GoldenHistoryEntry {
 export interface ModelMetrics {
   mae: number
   rmse: number
-  mape: number
+  r2: number
+  mape?: number | null
 }
 
 export interface ModelVersionEntry {
