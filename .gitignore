@@ -108,10 +108,11 @@ backend/data/**/*.sqlite
 # Keep golden model JSON files tracked
 !backend/models/golden_archive.json
 !backend/models/golden_history.json
-!backend/models/golden_registry.json
 !backend/models/golden_session.json
 !backend/models/model_metrics.json
 !backend/models/model_versions.json
+!backend/models/drift_baseline.json
+!backend/models/golden_rejections.json
 
 # MLflow / experiment tracking
 mlruns/

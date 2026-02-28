@@ -8,7 +8,8 @@
     "metrics": {
       "mae": 40.81873626017536,
       "rmse": 133.30082662221764,
-      "mape": 254.255721840493
+      "r2": 0.9770177236547802,
+      "mape": null
     },
     "dataset_size": 60,
     "model_version": 1
@@ -22,9 +23,25 @@
     "metrics": {
       "mae": 40.81873626017536,
       "rmse": 133.30082662221764,
-      "mape": 254.255721840493
+      "r2": 0.9770177236547802,
+      "mape": null
     },
     "dataset_size": 60,
     "model_version": 2
+  },
+  {
+    "time": "2026-02-28T05:59:08.389989",
+    "reason": {
+      "high_anomaly_rate": false,
+      "high_energy_drift": true
+    },
+    "metrics": {
+      "mae": 40.81873626017536,
+      "rmse": 133.30082662221764,
+      "r2": 0.9770177236547802,
+      "mape": null
+    },
+    "dataset_size": 60,
+    "model_version": 3
   }
 ]
