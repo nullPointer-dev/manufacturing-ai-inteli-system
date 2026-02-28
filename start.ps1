@@ -1,95 +1,123 @@
-# Manufacturing AI Intelligence System - Quick Start
+# ============================================================
+#  Manufacturing AI Intelligence System - Launcher
+#  Run this from the project root:  .\start.ps1
+# ============================================================
 
-Write-Host "=" -NoNewline -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Manufacturing AI Intelligence System" -ForegroundColor Green
-Write-Host " Complete System Startup" -ForegroundColor Green
-Write-Host "========================================" -ForegroundColor Cyan
+$ROOT   = $PSScriptRoot
+$BACK   = Join-Path $ROOT "backend"
+$FRONT  = Join-Path $ROOT "frontend"
+$PYTHON = Join-Path $BACK  "venv\Scripts\python.exe"
+$ENTRY  = Join-Path $BACK  "src\backend_api.py"
 
-# Check if Python is installed
-Write-Host "`n[1/5] Checking Python..." -ForegroundColor Yellow
-if (!(Get-Command python -ErrorAction SilentlyContinue)) {
-    Write-Host "ERROR: Python not found. Please install Python 3.8+" -ForegroundColor Red
+# ---- colours -----------------------------------------------
+function Write-Header { param($msg)
+    Write-Host "`n============================================================" -ForegroundColor Cyan
+    Write-Host "  $msg" -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor Cyan
+}
+function Write-Ok    { param($msg) Write-Host "[OK]  $msg" -ForegroundColor Green  }
+function Write-Info  { param($msg) Write-Host "[..] $msg"  -ForegroundColor Yellow }
+function Write-Err   { param($msg) Write-Host "[ERR] $msg" -ForegroundColor Red    }
+
+# ---- pre-flight checks -------------------------------------
+Write-Header "Manufacturing AI Intelligence System"
+
+if (-not (Test-Path $PYTHON)) {
+    Write-Err "Python venv not found at: $PYTHON"
+    Write-Err "Run:  cd backend; python -m venv venv; .\venv\Scripts\pip install -r ..\requirements.txt"
+    Read-Host "Press Enter to exit"
     exit 1
 }
-Write-Host "Python found: " -NoNewline
-python --version
 
-# Check if Node.js is installed
-Write-Host "`n[2/5] Checking Node.js..." -ForegroundColor Yellow
-if (!(Get-Command node -ErrorAction SilentlyContinue)) {
-    Write-Host "ERROR: Node.js not found. Please install Node.js 16+" -ForegroundColor Red
-    exit 1
-}
-Write-Host "Node.js found: " -NoNewline
-node --version
-
-# Backend Setup
-Write-Host "`n[3/5] Setting up Backend..." -ForegroundColor Yellow
-cd backend
-
-# Check if virtual environment exists
-if (!(Test-Path "venv")) {
-    Write-Host "Creating virtual environment..." -ForegroundColor Cyan
-    python -m venv venv
+if (-not (Test-Path "$FRONT\node_modules")) {
+    Write-Info "node_modules not found. Installing npm packages..."
+    & npm install --prefix $FRONT
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "npm install failed. Install Node.js and try again."
+        Read-Host "Press Enter to exit"
+        exit 1
+    }
 }
 
-# Activate virtual environment
-Write-Host "Activating virtual environment..." -ForegroundColor Cyan
-.\venv\Scripts\Activate.ps1
-
-# Install Python dependencies
-Write-Host "Installing Python dependencies..." -ForegroundColor Cyan
-pip install -q -r ..\requirements.txt
-pip install -q fastapi uvicorn
-
-# Check if model exists
-$modelPath = "models\model.pkl"
-if (!(Test-Path $modelPath)) {
-    Write-Host "Training initial model (this may take a minute)..." -ForegroundColor Cyan
-    python src\train_model.py
+# ---- free ports if already in use -------------------------
+foreach ($port in @(8000, 5173)) {
+    $conn = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+    if ($conn) {
+        Write-Info "Freeing port $port (PID $($conn.OwningProcess))..."
+        Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 800
+    }
 }
 
-Write-Host "Backend setup complete!" -ForegroundColor Green
+# ---- start backend -----------------------------------------
+Write-Info "Starting backend (FastAPI) on http://localhost:8000 ..."
 
-# Frontend Setup
-Write-Host "`n[4/5] Setting up Frontend..." -ForegroundColor Yellow
-cd ..\frontend
+$backJob = Start-Process -FilePath $PYTHON `
+    -ArgumentList $ENTRY `
+    -WorkingDirectory (Join-Path $BACK "src") `
+    -PassThru `
+    -WindowStyle Normal
 
-# Check if node_modules exists
-if (!(Test-Path "node_modules")) {
-    Write-Host "Installing Node dependencies (this may take a few minutes)..." -ForegroundColor Cyan
-    npm install
-} else {
-    Write-Host "Node dependencies already installed." -ForegroundColor Green
-}
-
-Write-Host "Frontend setup complete!" -ForegroundColor Green
-
-# Start Services
-Write-Host "`n[5/5] Starting Services..." -ForegroundColor Yellow
-
-# Start Backend API in new window
-Write-Host "Starting Backend API on port 8000..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PWD\..\backend'; .\venv\Scripts\Activate.ps1; python backend_api.py"
-
-# Wait a bit for backend to start
 Start-Sleep -Seconds 3
 
-# Start Frontend in new window
-Write-Host "Starting Frontend on port 3000..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PWD'; npm run dev"
+$healthOk = $false
+for ($i = 1; $i -le 10; $i++) {
+    try {
+        $r = Invoke-RestMethod -Uri "http://localhost:8000/api/health" -TimeoutSec 2 -ErrorAction Stop
+        if ($r.status -eq "healthy") { $healthOk = $true; break }
+    } catch {}
+    Start-Sleep -Seconds 1
+}
 
-# Summary
-Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host " System Started Successfully!" -ForegroundColor Green
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "`nServices running:"
-Write-Host "  Backend API:  " -NoNewline -ForegroundColor Yellow
-Write-Host "http://localhost:8000" -ForegroundColor Cyan
-Write-Host "  API Docs:     " -NoNewline -ForegroundColor Yellow
-Write-Host "http://localhost:8000/docs" -ForegroundColor Cyan
-Write-Host "  Frontend UI:  " -NoNewline -ForegroundColor Yellow
-Write-Host "http://localhost:3000" -ForegroundColor Cyan
-Write-Host "`nPress Ctrl+C in each window to stop services" -ForegroundColor Gray
-Write-Host "========================================`n" -ForegroundColor Cyan
+if ($healthOk) {
+    Write-Ok "Backend healthy  ->  http://localhost:8000"
+} else {
+    Write-Err "Backend did not respond after 10 s. Check the backend window for errors."
+}
+
+# ---- start frontend ----------------------------------------
+Write-Info "Starting frontend (Vite) on http://localhost:5173 ..."
+
+$frontJob = Start-Process -FilePath "cmd.exe" `
+    -ArgumentList "/c npm run dev" `
+    -WorkingDirectory $FRONT `
+    -PassThru `
+    -WindowStyle Normal
+
+Start-Sleep -Seconds 4
+
+$frontOk = $false
+for ($i = 1; $i -le 10; $i++) {
+    $conn = Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue
+    if ($conn) { $frontOk = $true; break }
+    Start-Sleep -Seconds 1
+}
+
+if ($frontOk) {
+    Write-Ok "Frontend ready   ->  http://localhost:5173"
+} else {
+    Write-Err "Frontend did not start on port 5173. Check the frontend window for errors."
+}
+
+# ---- open browser ------------------------------------------
+Write-Header "System ready"
+Write-Host "  Frontend  :  http://localhost:5173" -ForegroundColor White
+Write-Host "  API docs  :  http://localhost:8000/docs" -ForegroundColor White
+Write-Host ""
+Write-Host "  Close this window (or press Ctrl+C) to shut everything down." -ForegroundColor DarkGray
+Write-Host ""
+
+Start-Process "http://localhost:5173"
+
+# ---- wait and clean up on Ctrl+C ---------------------------
+try {
+    while ($true) { Start-Sleep -Seconds 5 }
+} finally {
+    Write-Host "`nShutting down..." -ForegroundColor Yellow
+    if ($backJob  -and -not $backJob.HasExited)  { Stop-Process -Id $backJob.Id  -Force -ErrorAction SilentlyContinue }
+    if ($frontJob -and -not $frontJob.HasExited) { Stop-Process -Id $frontJob.Id -Force -ErrorAction SilentlyContinue }
+    # also kill any child node processes on port 5173
+    $conn = Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue
+    if ($conn) { Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue }
+    Write-Ok "All processes stopped."
+}
