@@ -115,9 +115,9 @@ export function Prediction() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-4"
+              className="space-y-4 self-start"
             >
-              <Card className="glass-panel h-full">
+              <Card className="glass-panel">
                 <CardHeader>
                   <CardTitle>Quality Metrics</CardTitle>
                 </CardHeader>
@@ -155,7 +155,7 @@ export function Prediction() {
                 </CardContent>
               </Card>
 
-              <Card className="glass-panel h-full">
+              <Card className="glass-panel">
                 <CardHeader>
                   <CardTitle>Energy & Emissions</CardTitle>
                 </CardHeader>

@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import { Dialog } from '@/components/ui/dialog'
 import { useOptimizationStore } from '@/store/optimizationStore'
 import { optimizationApi, goldenApi } from '@/lib/api'
 import { formatNumber } from '@/lib/utils'
@@ -44,6 +45,8 @@ export function Optimization() {
     min_yield: 85,
     min_performance: 80,
   })
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectReason, setRejectReason] = useState('Score too low')
 
   const optimizeMutation = useMutation({
     mutationFn: async () => {
@@ -53,7 +56,11 @@ export function Optimization() {
           mode === 'custom' ? customWeights : undefined
         )
       } else {
-        return optimizationApi.optimizeTarget(constraints, mode)
+        return optimizationApi.optimizeTarget(
+          constraints,
+          mode,
+          mode === 'custom' ? customWeights : undefined
+        )
       }
     },
     onSuccess: (data) => {
@@ -92,6 +99,30 @@ export function Optimization() {
   })
 
   const rejectGolden = () => {
+    setShowRejectModal(true)
+  }
+
+  const handleRejectConfirm = async () => {
+    if (clusterId !== null && results[0]) {
+      try {
+        await goldenApi.rejectGolden(
+          mode,
+          clusterId,
+          {
+            score: results[0].Score ?? 0,
+            quality: results[0].Quality ?? 0,
+            yield: results[0].Yield ?? 0,
+            performance: results[0].Performance ?? 0,
+            energy: results[0].Energy ?? 0,
+          },
+          rejectReason,
+          scenarioKey || undefined
+        )
+      } catch (e) {
+        console.error('Rejection logging failed', e)
+      }
+    }
+    setShowRejectModal(false)
     clearProposal()
   }
 
@@ -124,8 +155,8 @@ export function Optimization() {
                     onClick={() => setMode(m.value)}
                     className={`text-left p-4 rounded-lg border transition-all ${
                       mode === m.value
-                        ? 'border-neon-blue bg-neon-blue/20 text-neon-blue'
-                        : 'border-border hover:border-neon-blue/50'
+                        ? 'border-teal-500 bg-teal-500/20 text-teal-400'
+                        : 'border-border hover:border-teal-500/50'
                     }`}
                   >
                     <div className="font-semibold text-sm mb-1">{m.label}</div>
@@ -178,7 +209,7 @@ export function Optimization() {
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
             >
-              <Card className="glass-panel border-neon-purple/30">
+              <Card className="glass-panel border-teal-500/30">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-base">Custom Weights</CardTitle>
                 </CardHeader>
@@ -188,7 +219,7 @@ export function Optimization() {
                       <div key={key} className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <Label className="font-medium">{key.charAt(0).toUpperCase() + key.slice(1)}</Label>
-                          <span className="text-neon-purple font-semibold">{(value * 100).toFixed(0)}%</span>
+                          <span className="text-teal-400 font-semibold">{(value * 100).toFixed(0)}%</span>
                         </div>
                         <Slider
                           value={[value * 100]}
@@ -338,24 +369,44 @@ export function Optimization() {
                 </AnimatePresence>
 
                 {/* Optimal Solution */}
-                <Card className="glass-panel">
+                <Card className="glass-panel relative">
+                  {/* Loading Overlay */}
+                  {optimizeMutation.isPending && (
+                    <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 rounded-lg flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="relative w-16 h-16 mx-auto mb-4">
+                          <div className="absolute inset-0 border-4 border-teal-500/30 rounded-full"></div>
+                          <div className="absolute inset-0 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                        <p className="text-lg font-semibold text-teal-400 mb-1">Optimizing...</p>
+                        <p className="text-sm text-muted-foreground">Running NSGA-II multi-objective optimization</p>
+                      </div>
+                    </div>
+                  )}
+                  
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Target className="h-5 w-5 text-neon-blue" />
+                      <Target className="h-5 w-5 text-teal-400" />
                       Optimal Solution
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className={optimizeMutation.isPending ? 'opacity-30' : ''}>
                     {/* Primary KPIs */}
                     <div className="grid grid-cols-5 gap-4 mb-6">
-                      {['Quality', 'Yield', 'Performance', 'Energy', 'CO2'].map((metric) => (
-                        <div key={metric} className="text-center">
-                          <p className="text-xs text-muted-foreground mb-1">{metric}</p>
-                          <p className="text-2xl font-bold text-neon-blue">
-                            {formatNumber(results[0][metric] || 0, 1)}
+                      {[
+                        { key: 'Quality', label: 'Quality', unit: '' },
+                        { key: 'Yield', label: 'Yield', unit: '' },
+                        { key: 'Performance', label: 'Performance', unit: '' },
+                        { key: 'Energy', label: 'Energy Used', unit: 'kWh' },
+                        { key: 'CO2', label: 'CO2 Emissions', unit: 'kg' }
+                      ].map((metric) => (
+                        <div key={metric.key} className="text-center">
+                          <p className="text-xs text-muted-foreground mb-1">{metric.label}</p>
+                          <p className="text-2xl font-bold text-teal-400">
+                            {formatNumber(results[0][metric.key] || 0, 1)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {metric === 'Energy' ? 'kWh' : metric === 'CO2' ? 'kg' : ''}
+                            {metric.unit}
                           </p>
                         </div>
                       ))}
@@ -379,7 +430,7 @@ export function Optimization() {
 
                       {/* Process Parameters */}
                       <div>
-                        <p className="text-sm font-semibold mb-3 text-neon-purple">Process Parameters</p>
+                        <p className="text-sm font-semibold mb-3 text-teal-400">Process Parameters</p>
                         <Table>
                           <TableBody>
                             {[
@@ -447,8 +498,8 @@ export function Optimization() {
 
                       {/* Advanced Scores */}
                       {(results[0]['yield_score'] !== undefined || results[0]['stability_index'] !== undefined) && (
-                        <div className="border border-purple-500/30 rounded-lg p-4 bg-purple-500/5">
-                          <p className="text-base font-bold mb-4 text-purple-400">Advanced Scores</p>
+                        <div className="border border-teal-500/30 rounded-lg p-4 bg-teal-500/5">
+                          <p className="text-base font-bold mb-4 text-teal-400">Advanced Scores</p>
                           <div className="grid grid-cols-4 gap-4">
                             {['yield_score', 'performance_score', 'stability_index', 'process_intensity'].map((metric) => (
                               results[0][metric] !== undefined && (
@@ -485,6 +536,39 @@ export function Optimization() {
             )}
           </AnimatePresence>
         </div>
+
+      {/* Rejection Reason Modal */}
+      <Dialog
+        isOpen={showRejectModal}
+        onClose={() => setShowRejectModal(false)}
+        title="Reject Golden Signature Update"
+        confirmText="Confirm Rejection"
+        cancelText="Cancel"
+        variant="destructive"
+        onConfirm={handleRejectConfirm}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Select the reason for rejecting this proposed update. This feedback is stored and used to improve future optimization decisions.
+          </p>
+          <div className="grid gap-2">
+            {['Score too low', 'Energy too high', 'Quality concern', 'Yield insufficient', 'Process risk', 'Other'].map((reason) => (
+              <button
+                key={reason}
+                onClick={() => setRejectReason(reason)}
+                className={`text-left text-sm px-4 py-2 rounded border transition-colors ${
+                  rejectReason === reason
+                    ? 'border-red-500 bg-red-500/10 text-red-400 font-medium'
+                    : 'border-border bg-background/50 hover:border-muted-foreground'
+                }`}
+              >
+                {reason}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Dialog>
+
     </motion.div>
   )
 }

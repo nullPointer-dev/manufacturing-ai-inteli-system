@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Award, TrendingUp, Clock, Trash2, Archive } from 'lucide-react'
+import { Award, TrendingUp, Clock, Trash2, Archive, XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
+import { Dialog } from '@/components/ui/dialog'
 import { goldenApi } from '@/lib/api'
 import { formatNumber } from '@/lib/utils'
 import { format } from 'date-fns'
 
 export function GoldenSignature() {
   const [view, setView] = useState<'session' | 'archive'>('session')
+  const [showClearDialog, setShowClearDialog] = useState(false)
   const queryClient = useQueryClient()
 
   const { data: registry = {} } = useQuery({
@@ -26,6 +28,11 @@ export function GoldenSignature() {
   const { data: archive = { archived_sessions: [] } } = useQuery({
     queryKey: ['golden-archive'],
     queryFn: goldenApi.getArchive,
+  })
+
+  const { data: rejectionData = { rejections: [] } } = useQuery({
+    queryKey: ['rejection-history'],
+    queryFn: goldenApi.getRejectionHistory,
   })
 
   const clearSessionMutation = useMutation({
@@ -104,7 +111,7 @@ export function GoldenSignature() {
           {registryEntries.length > 0 && view === 'session' && (
             <Button
               variant="destructive"
-              onClick={() => clearSessionMutation.mutate()}
+              onClick={() => setShowClearDialog(true)}
               disabled={clearSessionMutation.isPending}
             >
               <Trash2 className="mr-2 h-4 w-4" />
@@ -114,7 +121,7 @@ export function GoldenSignature() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card className="glass-panel border-neon-green/30">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -127,16 +134,16 @@ export function GoldenSignature() {
           </CardContent>
         </Card>
 
-        <Card className="glass-panel border-neon-blue/30">
+        <Card className="glass-panel border-violet-500/30">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Active Modes</p>
-                <p className="text-3xl font-bold text-neon-blue">
+                <p className="text-3xl font-bold text-violet-500">
                   {Object.keys(registry).length}
                 </p>
               </div>
-              <TrendingUp className="h-10 w-10 text-neon-blue opacity-50" />
+              <TrendingUp className="h-10 w-10 text-violet-500 opacity-50" />
             </div>
           </CardContent>
         </Card>
@@ -159,6 +166,18 @@ export function GoldenSignature() {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="glass-panel border-red-500/30">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Human Rejections</p>
+                <p className="text-3xl font-bold text-red-400">{rejectionData.rejections.length}</p>
+              </div>
+              <XCircle className="h-10 w-10 text-red-400 opacity-50" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Registry Table */}
@@ -175,7 +194,6 @@ export function GoldenSignature() {
                     <TableRow>
                       <TableHead>Mode</TableHead>
                       <TableHead>Scenario</TableHead>
-                      <TableHead>Cluster</TableHead>
                       <TableHead className="text-right">Score</TableHead>
                       <TableHead className="text-right">Quality</TableHead>
                       <TableHead className="text-right">Yield</TableHead>
@@ -188,7 +206,6 @@ export function GoldenSignature() {
                       <TableRow key={idx}>
                         <TableCell className="font-medium capitalize">{entry.mode}</TableCell>
                         <TableCell className="font-mono text-xs">{entry.scenario}</TableCell>
-                        <TableCell>{entry.cluster}</TableCell>
                         <TableCell className="text-right text-neon-green font-mono">
                           {formatNumber(entry.metrics.score, 3)}
                         </TableCell>
@@ -224,7 +241,7 @@ export function GoldenSignature() {
             <CardContent>
               {history.length > 0 ? (
                 <div className="space-y-3">
-                  {history.slice(0, 10).map((entry, idx) => (
+                  {[...history].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 10).map((entry, idx) => (
                     <motion.div
                       key={idx}
                       initial={{ opacity: 0, x: -20 }}
@@ -243,15 +260,14 @@ export function GoldenSignature() {
                               ({entry.scenario_key})
                             </span>
                           )}
-                          <span className="text-xs text-muted-foreground">• Cluster {entry.cluster}</span>
                           <span
                             className={`text-xs px-2 py-0.5 rounded ${
                               entry.type === 'IMPROVED'
                                 ? 'bg-neon-green/20 text-neon-green'
-                                : 'bg-neon-blue/20 text-neon-blue'
+                                : 'bg-violet-500/20 text-violet-500'
                             }`}
                           >
-                            {entry.type}
+                            {entry.type.toLowerCase()}
                           </span>
                         </div>
                         <div className="grid grid-cols-5 gap-3 text-xs">
@@ -290,6 +306,55 @@ export function GoldenSignature() {
               )}
             </CardContent>
           </Card>
+          {/* Rejection Log */}
+          {rejectionData.rejections.length > 0 && (
+            <Card className="glass-panel border-red-500/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-red-400">
+                  <XCircle className="h-5 w-5" />
+                  Human Rejection Log
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {rejectionData.rejections.slice(0, 8).map((entry, idx) => (
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.04 }}
+                      className="flex items-start gap-4 p-4 rounded-lg border border-red-500/20 bg-red-500/5"
+                    >
+                      <div className="flex-shrink-0 mt-1">
+                        <div className="h-2 w-2 rounded-full bg-red-500" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-sm capitalize">{entry.mode}</span>
+                          {entry.scenario_key && (
+                            <span className="text-xs font-mono text-muted-foreground">({entry.scenario_key})</span>
+                          )}
+                          <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">rejected</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mb-1">
+                          Reason: <span className="text-red-300 font-medium">{entry.reason}</span>
+                        </p>
+                        <div className="grid grid-cols-4 gap-2 text-xs">
+                          <div><span className="text-muted-foreground">Score:</span>{' '}<span className="font-mono">{formatNumber(entry.proposed_metrics.score ?? 0, 3)}</span></div>
+                          <div><span className="text-muted-foreground">Quality:</span>{' '}<span className="font-mono">{formatNumber(entry.proposed_metrics.quality ?? 0, 2)}</span></div>
+                          <div><span className="text-muted-foreground">Energy:</span>{' '}<span className="font-mono">{formatNumber(entry.proposed_metrics.energy ?? 0, 1)}</span></div>
+                          <div><span className="text-muted-foreground">Cluster:</span>{' '}<span className="font-mono">{entry.cluster}</span></div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground flex-shrink-0">
+                        {format(new Date(entry.time), 'MMM dd, HH:mm')}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 
@@ -379,6 +444,18 @@ export function GoldenSignature() {
           </CardContent>
         </Card>
       )}
+
+      {/* Clear & Archive Confirmation Dialog */}
+      <Dialog
+        isOpen={showClearDialog}
+        onClose={() => setShowClearDialog(false)}
+        title="Clear & Archive Session"
+        description="Are you sure you want to clear the current session and move all golden signatures to the archive? This action cannot be undone."
+        confirmText="Clear & Archive"
+        cancelText="Cancel"
+        variant="destructive"
+        onConfirm={() => clearSessionMutation.mutate()}
+      />
     </motion.div>
   )
 }

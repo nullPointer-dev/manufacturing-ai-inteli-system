@@ -1,25 +1,48 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Shield, RefreshCw, TrendingUp, AlertCircle } from 'lucide-react'
+import { Shield, RefreshCw, TrendingUp, AlertCircle, CheckCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { governanceApi } from '@/lib/api'
 import { formatNumber } from '@/lib/utils'
 import { format } from 'date-fns'
+import { useState } from 'react'
 
 export function Governance() {
+  const queryClient = useQueryClient()
+  const [retrainLoading, setRetrainLoading] = useState(false)
+  const [retrainResult, setRetrainResult] = useState<{ retrained: boolean; flags: Record<string, boolean> } | null>(null)
+
   const { data: modelHistory = [] } = useQuery({
     queryKey: ['model-history'],
     queryFn: governanceApi.getModelHistory,
   })
 
-  const { data: featureImportance = [] } = useQuery({
+  const { data: featureImportance = [], isLoading: shapLoading } = useQuery({
     queryKey: ['feature-importance'],
     queryFn: governanceApi.getFeatureImportance,
   })
 
   const latestVersion = modelHistory[modelHistory.length - 1]
+
+  const handleCheckRetrain = async () => {
+    setRetrainLoading(true)
+    setRetrainResult(null)
+    try {
+      const result = await governanceApi.checkRetrain()
+      setRetrainResult(result)
+      if (result.retrained) {
+        // Refresh model history and feature importance after retraining
+        queryClient.invalidateQueries({ queryKey: ['model-history'] })
+        queryClient.invalidateQueries({ queryKey: ['feature-importance'] })
+      }
+    } catch (err) {
+      console.error('Retrain check failed:', err)
+    } finally {
+      setRetrainLoading(false)
+    }
+  }
 
   return (
     <motion.div
@@ -34,7 +57,7 @@ export function Governance() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card className="glass-panel border-neon-green/30">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -49,22 +72,22 @@ export function Governance() {
           </CardContent>
         </Card>
 
-        <Card className="glass-panel border-neon-blue/30">
+        <Card className="glass-panel border-teal-500/30">
           <CardContent className="p-6">
             <div>
               <p className="text-sm text-muted-foreground mb-1">MAE</p>
-              <p className="text-2xl font-bold text-neon-blue">
+              <p className="text-2xl font-bold text-teal-400">
                 {latestVersion ? formatNumber(latestVersion.metrics.mae, 3) : '-'}
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="glass-panel border-neon-purple/30">
+        <Card className="glass-panel border-teal-500/30">
           <CardContent className="p-6">
             <div>
               <p className="text-sm text-muted-foreground mb-1">RMSE</p>
-              <p className="text-2xl font-bold text-neon-purple">
+              <p className="text-2xl font-bold text-teal-400">
                 {latestVersion ? formatNumber(latestVersion.metrics.rmse, 3) : '-'}
               </p>
             </div>
@@ -74,9 +97,22 @@ export function Governance() {
         <Card className="glass-panel border-neon-yellow/30">
           <CardContent className="p-6">
             <div>
-              <p className="text-sm text-muted-foreground mb-1">MAPE</p>
+              <p className="text-sm text-muted-foreground mb-1">avg R²</p>
               <p className="text-2xl font-bold text-neon-yellow">
-                {latestVersion ? formatNumber(latestVersion.metrics.mape, 2) : '-'}%
+                {latestVersion ? formatNumber(latestVersion.metrics.r2 ?? 0, 4) : '-'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="glass-panel border-orange-500/30">
+          <CardContent className="p-6">
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">MAPE</p>
+              <p className="text-2xl font-bold text-orange-400">
+                {latestVersion?.metrics.mape != null
+                  ? `${formatNumber(latestVersion.metrics.mape * 100, 2)}%`
+                  : '—'}
               </p>
             </div>
           </CardContent>
@@ -88,10 +124,23 @@ export function Governance() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Model Version History</CardTitle>
-            <Button variant="outline" size="sm">
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Check Drift & Retrain
-            </Button>
+            <div className="flex items-center gap-3">
+              {retrainResult && (
+                <div className={`flex items-center gap-2 text-sm px-3 py-1 rounded-full ${
+                  retrainResult.retrained
+                    ? 'bg-neon-green/15 text-neon-green'
+                    : 'bg-secondary text-muted-foreground'
+                }`}>
+                  {retrainResult.retrained
+                    ? <><CheckCircle className="h-4 w-4" /> Retrained successfully</>
+                    : <><AlertCircle className="h-4 w-4" /> {Object.keys(retrainResult.flags).find(k => retrainResult.flags[k] === true) === 'cooldown_active' ? 'Cooldown active — no retrain needed' : 'No drift detected'}</>}
+                </div>
+              )}
+              <Button variant="outline" size="sm" onClick={handleCheckRetrain} disabled={retrainLoading}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${retrainLoading ? 'animate-spin' : ''}`} />
+                {retrainLoading ? 'Checking...' : 'Check Drift & Retrain'}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -104,6 +153,8 @@ export function Governance() {
                   <TableHead>Reason</TableHead>
                   <TableHead className="text-right">MAE</TableHead>
                   <TableHead className="text-right">RMSE</TableHead>
+                  <TableHead className="text-right">avg R²</TableHead>
+                  <TableHead className="text-right">MAPE</TableHead>
                   <TableHead className="text-right">Dataset Size</TableHead>
                 </TableRow>
               </TableHeader>
@@ -134,6 +185,14 @@ export function Governance() {
                     <TableCell className="text-right font-mono">
                       {formatNumber(version.metrics.rmse, 3)}
                     </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {version.metrics.r2 != null ? formatNumber(version.metrics.r2, 4) : '—'}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {version.metrics.mape != null
+                        ? `${formatNumber((version.metrics.mape as number) * 100, 2)}%`
+                        : '—'}
+                    </TableCell>
                     <TableCell className="text-right">{version.dataset_size}</TableCell>
                   </TableRow>
                 ))}
@@ -153,11 +212,32 @@ export function Governance() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" />
-            Global Feature Importance
+            SHAP Global Feature Importance
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {featureImportance.length > 0 ? (
+          {shapLoading ? (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground mb-4 animate-pulse">
+                Computing SHAP values across all model estimators — this may take a few seconds…
+              </p>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div
+                    className="h-4 bg-secondary rounded animate-pulse"
+                    style={{ width: `${60 + Math.round((i % 4) * 15)}px` }}
+                  />
+                  <div className="flex-1 h-6 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-secondary/60 rounded-full animate-pulse"
+                      style={{ width: `${90 - i * 9}%`, animationDelay: `${i * 80}ms` }}
+                    />
+                  </div>
+                  <div className="h-4 w-16 bg-secondary rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
+          ) : featureImportance.length > 0 ? (
             <div className="space-y-3">
               {featureImportance.slice(0, 15).map((feature, idx) => (
                 <div key={idx} className="flex items-center gap-3">
@@ -167,7 +247,7 @@ export function Governance() {
                       initial={{ width: 0 }}
                       animate={{ width: `${(feature.importance / featureImportance[0].importance) * 100}%` }}
                       transition={{ duration: 0.5, delay: idx * 0.05 }}
-                      className="h-full bg-gradient-to-r from-neon-blue to-neon-purple"
+                      className="h-full bg-gradient-to-r from-teal-600 to-teal-400"
                     />
                   </div>
                   <span className="text-sm font-mono text-muted-foreground w-20 text-right">
