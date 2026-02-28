@@ -21,7 +21,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             'border border-input bg-background hover:bg-accent hover:text-accent-foreground':
               variant === 'outline',
             'hover:bg-accent hover:text-accent-foreground': variant === 'ghost',
-            'bg-neon-blue/20 text-neon-blue border border-neon-blue hover:bg-neon-blue/30 neon-glow':
+            'backdrop-blur-md bg-white/10 text-teal-300 border border-teal-500/40 hover:bg-white/15 hover:border-teal-400/60 hover:text-teal-200 transition-all duration-200':
               variant === 'neon',
           },
           {
