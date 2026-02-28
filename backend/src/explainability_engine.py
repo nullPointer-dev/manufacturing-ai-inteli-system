@@ -1,6 +1,7 @@
 import joblib
 import numpy as np
 import pandas as pd
+import shap
 from pathlib import Path
 
 MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
@@ -18,74 +19,110 @@ def _load_model():
 
 
 # =========================================================
-# GLOBAL FEATURE IMPORTANCE
+# GLOBAL SHAP FEATURE IMPORTANCE
 # =========================================================
 def get_global_feature_importance():
     """
-    Returns feature importance averaged across all outputs.
-    Works with RandomForest inside MultiOutputRegressor.
+    Returns mean absolute SHAP values averaged across all target outputs.
+    Uses shap.TreeExplainer on each estimator inside MultiOutputRegressor.
     """
+    from data_pipeline import build_pipeline
 
     model, feature_cols = _load_model()
 
     try:
-        # MultiOutputRegressor → list of estimators
-        importances = []
+        df = build_pipeline()
+        # Build feature matrix aligned to training columns
+        X = df.reindex(columns=feature_cols).apply(
+            pd.to_numeric, errors="coerce"
+        ).fillna(0.0)
+
+        # Use up to 100 rows as SHAP background for speed
+        background = X.sample(min(100, len(X)), random_state=42).values
+
+        shap_importances = []  # one array per target estimator
 
         for est in model.estimators_:
-            if hasattr(est, "feature_importances_"):
-                importances.append(est.feature_importances_)
+            explainer = shap.TreeExplainer(
+                est,
+                data=background,
+                feature_perturbation="interventional",
+            )
+            # Compute SHAP values for the same background sample
+            sv = explainer.shap_values(background, check_additivity=False)
+            # sv shape: (n_samples, n_features)
+            mean_abs = np.abs(sv).mean(axis=0)
+            shap_importances.append(mean_abs)
 
-        if not importances:
+        if not shap_importances:
             return None
 
-        avg_importance = np.mean(importances, axis=0)
+        avg_importance = np.mean(shap_importances, axis=0)
 
-        df = pd.DataFrame({
+        result_df = pd.DataFrame({
             "feature": feature_cols,
             "importance": avg_importance
         }).sort_values("importance", ascending=False)
 
-        return df.reset_index(drop=True)
+        return result_df.reset_index(drop=True)
 
-    except Exception:
-        return None
+    except Exception as exc:
+        print(f"[SHAP] Error computing SHAP values: {exc}")
+        # Fallback to built-in RF feature importances
+        try:
+            importances = [
+                est.feature_importances_
+                for est in model.estimators_
+                if hasattr(est, "feature_importances_")
+            ]
+            if not importances:
+                return None
+            avg = np.mean(importances, axis=0)
+            return pd.DataFrame({
+                "feature": feature_cols,
+                "importance": avg
+            }).sort_values("importance", ascending=False).reset_index(drop=True)
+        except Exception:
+            return None
 
 
 # =========================================================
-# LOCAL EXPLANATION FOR ONE ROW
+# LOCAL SHAP EXPLANATION FOR ONE ROW
 # =========================================================
 def explain_prediction(row_dict):
     """
-    Returns feature contribution proxy for a single optimized row.
-    Lightweight version without SHAP dependency.
+    Returns SHAP-based feature contributions for a single row.
     """
+    from data_pipeline import build_pipeline
 
     model, feature_cols = _load_model()
 
     try:
-        row = pd.DataFrame([row_dict])
-        row = row[feature_cols]
+        df = build_pipeline()
+        background = df.reindex(columns=feature_cols).apply(
+            pd.to_numeric, errors="coerce"
+        ).fillna(0.0).sample(min(50, len(df)), random_state=0).values
 
-        baseline = np.zeros(len(feature_cols))
+        row = pd.DataFrame([row_dict]).reindex(columns=feature_cols)
+        row = row.apply(pd.to_numeric, errors="coerce").fillna(0.0)
+
         contributions = []
+        for est in model.estimators_:
+            explainer = shap.TreeExplainer(
+                est,
+                data=background,
+                feature_perturbation="interventional",
+            )
+            sv = explainer.shap_values(row.values, check_additivity=False)
+            contributions.append(sv[0])
 
-        for i, col in enumerate(feature_cols):
-            temp = row.copy()
-            temp[col] = baseline[i]
+        avg_contributions = np.mean(contributions, axis=0)
 
-            pred_full = model.predict(row)[0]
-            pred_zero = model.predict(temp)[0]
-
-            diff = pred_full - pred_zero
-            contributions.append(float(np.mean(diff)))
-
-        df = pd.DataFrame({
+        return pd.DataFrame({
             "feature": feature_cols,
-            "impact": contributions
-        }).sort_values("impact", ascending=False)
+            "impact": avg_contributions
+        }).sort_values("impact", key=np.abs, ascending=False).reset_index(drop=True)
 
-        return df.reset_index(drop=True)
-
-    except Exception:
+    except Exception as exc:
+        print(f"[SHAP] Local explanation error: {exc}")
         return None
