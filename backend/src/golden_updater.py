@@ -6,6 +6,8 @@ MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
 SESSION_FILE = MODEL_DIR / "golden_session.json"  # Current session
 ARCHIVE_FILE = MODEL_DIR / "golden_archive.json"   # Permanent history
 HISTORY_FILE = MODEL_DIR / "golden_history.json"   # Session events log
+REGISTRY_FILE = MODEL_DIR / "golden_registry.json"  # Golden signatures registry
+REJECTION_FILE = MODEL_DIR / "golden_rejections.json"  # Human rejection log
 
 IMPROVEMENT_THRESHOLD = 0.01  # 1%
 
@@ -117,7 +119,11 @@ def check_and_update_golden(
 
     if force:
         should_update = True
-        update_type = "FORCED"
+        # If forced update, check if it's the first signature or an improvement
+        if prev_score is None:
+            update_type = "INITIAL"
+        else:
+            update_type = "IMPROVED"
 
     elif prev_score is None:
         should_update = True
@@ -258,3 +264,53 @@ def get_archive():
     Returns all archived golden signatures from previous sessions.
     """
     return _safe_load(ARCHIVE_FILE, {})
+
+
+# =========================================================
+# REJECTION LOGGING (Human-in-the-Loop)
+# =========================================================
+def log_rejection(mode, cluster_id, proposed_metrics, reason="User rejected", scenario_key=None):
+    """
+    Records a human rejection of a proposed golden signature update.
+    These logs are reused to inform future optimization weighting.
+    """
+    rejections = _safe_load(REJECTION_FILE, [])
+    rejections.append({
+        "time": datetime.now().isoformat(),
+        "mode": mode,
+        "cluster": cluster_id,
+        "scenario_key": scenario_key,
+        "reason": reason,
+        "proposed_metrics": proposed_metrics,
+        "type": "REJECTED"
+    })
+    with open(REJECTION_FILE, "w") as f:
+        json.dump(rejections, f, indent=2)
+    return {"status": "logged", "total_rejections": len(rejections)}
+
+
+def get_rejections():
+    """
+    Returns all logged human rejection events, newest first.
+    """
+    rejections = _safe_load(REJECTION_FILE, [])
+    return list(reversed(rejections))
+
+
+def get_rejection_penalty(mode, cluster_id, scenario_key=None):
+    """
+    Returns a penalty weight for a given mode/cluster based on past rejections.
+    Used by future optimizations to de-prioritise rejected directions.
+    Returns a float in [0, 1] where 0 = heavily rejected, 1 = no history.
+    """
+    rejections = _safe_load(REJECTION_FILE, [])
+    relevant = [
+        r for r in rejections
+        if r.get("mode") == mode
+        and r.get("cluster") == cluster_id
+        and (scenario_key is None or r.get("scenario_key") == scenario_key)
+    ]
+    if not relevant:
+        return 1.0
+    # Exponential decay: each rejection reduces weight by 15%
+    return max(0.3, 0.85 ** len(relevant))

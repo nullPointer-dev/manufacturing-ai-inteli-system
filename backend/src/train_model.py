@@ -22,6 +22,7 @@ MODEL_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_FILE = MODEL_DIR / "model.pkl"
 FEATURE_FILE = MODEL_DIR / "feature_columns.pkl"
 METRICS_FILE = MODEL_DIR / "model_metrics.json"
+DRIFT_BASELINE_FILE = MODEL_DIR / "drift_baseline.json"
 
 
 # =========================================================
@@ -118,7 +119,24 @@ def train_and_save_model(data_folder=None):
     # -----------------------------------------------------
     mae = mean_absolute_error(y_test, preds)
     rmse = np.sqrt(mean_squared_error(y_test, preds))
-    mape = np.mean(np.abs((y_test - preds) / (y_test + 1e-6))) * 100
+    r2 = float(np.mean([r2_score(y_test.iloc[:, i], preds[:, i]) for i in range(preds.shape[1])]))
+    # MAPE per target (guarded against divide-by-zero), then averaged
+    mape = float(np.mean([
+        np.mean(np.abs((y_test.iloc[:, i].values - preds[:, i]) / (np.abs(y_test.iloc[:, i].values) + 1e-6)))
+        for i in range(preds.shape[1])
+    ]))
+
+    # -----------------------------------------------------
+    # SAVE DRIFT BASELINE (used by drift detection on next run)
+    # -----------------------------------------------------
+    baseline = {
+        "energy_mean": float(df["total_energy"].mean()),
+        "energy_std": float(df["total_energy"].std()),
+        "anomaly_rate": float(df["anomaly_flag"].mean()) if "anomaly_flag" in df.columns else 0.0,
+        "n_samples": int(len(df)),
+    }
+    with open(DRIFT_BASELINE_FILE, "w") as f:
+        json.dump(baseline, f, indent=2)
 
     # -----------------------------------------------------
     # SAVE MODEL
@@ -132,7 +150,8 @@ def train_and_save_model(data_folder=None):
     return model, {
         "mae": float(mae),
         "rmse": float(rmse),
-        "mape": float(mape)
+        "r2": r2,
+        "mape": mape
     }
 
 
