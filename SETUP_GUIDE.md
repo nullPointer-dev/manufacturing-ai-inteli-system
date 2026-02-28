@@ -6,7 +6,7 @@ This is a production-grade AI-driven manufacturing intelligence system featuring
 - **Track B (Primary)**: Multi-objective optimization with golden signature management
 - **Track A (Secondary)**: Predictive modeling and energy pattern intelligence
 - **Frontend**: React 18 + TypeScript with industrial control room UI
-- **Backend**: Python with Streamlit UI + API integration layer
+- **Backend**: Python with FastAPI + integration layer
 
 ---
 
@@ -33,11 +33,8 @@ pip install -r ../requirements.txt
 # Train initial model (required)
 python src/train_model.py
 
-# Option A: Run Streamlit UI
-streamlit run src/app.py
-
-# Option B: Run FastAPI server (for frontend integration)
-python backend_api.py
+# Start FastAPI server
+python src/backend_api.py
 ```
 
 ### 2. Frontend Setup
@@ -71,7 +68,7 @@ backend/
 │   ├── model_metrics.json
 │   └── model_versions.json
 └── src/
-    ├── app.py              # Streamlit UI
+    ├── backend_api.py      # FastAPI server
     ├── train_model.py      # Model training
     ├── prediction_service.py
     ├── optimizer_nsga2.py   # NSGA-II engine
