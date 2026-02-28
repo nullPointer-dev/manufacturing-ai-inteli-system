@@ -76,6 +76,7 @@ def check_and_retrain(cooldown_hours=6):
         "metrics": {
             "mae": float(metrics.get("mae", 0)),
             "rmse": float(metrics.get("rmse", 0)),
+            "r2": float(metrics.get("r2", 0)),
             "mape": float(metrics.get("mape", 0)),
         },
         "dataset_size": int(len(df)),
