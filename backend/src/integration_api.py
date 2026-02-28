@@ -1,9 +1,11 @@
 import json
+import math
 from pathlib import Path
 
 from prediction_service import predict_batch
 from optimizer_auto import optimize_auto
 from optimizer_target import optimize_target
+from optimizer_core import compute_pareto_front
 from golden_updater import check_and_update_golden, _safe_load, SESSION_FILE, HISTORY_FILE, REGISTRY_FILE, clear_session_and_archive, get_archive, log_rejection, get_rejections
 from explainability_engine import get_global_feature_importance
 from learning_controller import check_and_retrain
@@ -23,6 +25,12 @@ def api_predict(payload: dict):
 # =========================================================
 # AUTO OPTIMIZATION
 # =========================================================
+def _sanitize(d: dict) -> dict:
+    """Replace NaN/Inf with None so JSON serialization never fails."""
+    return {k: (None if isinstance(v, float) and not math.isfinite(v) else v)
+            for k, v in d.items()}
+
+
 def api_optimize_auto(mode="balanced", custom_weights=None):
 
     results, proposal, cluster_id, scenario_key = optimize_auto(
@@ -33,11 +41,18 @@ def api_optimize_auto(mode="balanced", custom_weights=None):
     if results is None:
         return {"status": "no_solution"}
 
-    best = results.iloc[0].to_dict()
+    pareto_df = compute_pareto_front(results)
+    pareto_ids = set(pareto_df.index.tolist()) if pareto_df is not None else set()
+
+    all_results = [_sanitize(row.to_dict()) for _, row in results.iterrows()]
+    pareto_front = [_sanitize(row.to_dict()) for _, row in pareto_df.iterrows()] if pareto_df is not None else []
+    best = _sanitize(results.iloc[0].to_dict())
 
     return {
         "status": "success",
         "top_result": best,
+        "all_results": all_results,
+        "pareto_front": pareto_front,
         "proposal": proposal,
         "cluster_id": int(cluster_id),
         "scenario_key": scenario_key
@@ -66,9 +81,15 @@ def api_optimize_target(required_reduction=None,
     if results is None or len(results) == 0:
         return {"status": "no_solution"}
 
+    pareto_df = compute_pareto_front(results)
+    all_results = [_sanitize(row.to_dict()) for _, row in results.iterrows()]
+    pareto_front = [_sanitize(row.to_dict()) for _, row in pareto_df.iterrows()] if pareto_df is not None else []
+
     return {
         "status": "success",
-        "best_solution": results.iloc[0].to_dict()
+        "best_solution": _sanitize(results.iloc[0].to_dict()),
+        "all_results": all_results,
+        "pareto_front": pareto_front,
     }
 
 

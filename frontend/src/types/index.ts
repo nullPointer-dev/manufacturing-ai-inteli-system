@@ -46,6 +46,8 @@ export interface OptimizationResponse {
   status: string
   top_result?: OptimizationResult
   best_solution?: OptimizationResult
+  all_results?: OptimizationResult[]
+  pareto_front?: OptimizationResult[]
   proposal: boolean
   cluster_id: number
   scenario_key?: string

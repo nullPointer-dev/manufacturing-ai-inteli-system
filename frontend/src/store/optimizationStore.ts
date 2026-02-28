@@ -5,6 +5,8 @@ interface OptimizationState {
   mode: OptimizationMode
   customWeights: CustomWeights
   results: OptimizationResult[]
+  allResults: OptimizationResult[]
+  paretoFront: OptimizationResult[]
   selectedResult: OptimizationResult | null
   proposal: boolean
   clusterId: number | null
@@ -13,6 +15,8 @@ interface OptimizationState {
   setMode: (mode: OptimizationMode) => void
   setCustomWeights: (weights: Partial<CustomWeights>) => void
   setResults: (results: OptimizationResult[]) => void
+  setAllResults: (results: OptimizationResult[]) => void
+  setParetoFront: (results: OptimizationResult[]) => void
   setSelectedResult: (result: OptimizationResult | null) => void
   setProposal: (proposal: boolean, clusterId: number, scenarioKey?: string) => void
   clearProposal: () => void
@@ -31,6 +35,8 @@ export const useOptimizationStore = create<OptimizationState>((set) => ({
   mode: 'balanced',
   customWeights: defaultWeights,
   results: [],
+  allResults: [],
+  paretoFront: [],
   selectedResult: null,
   proposal: false,
   clusterId: null,
@@ -49,6 +55,10 @@ export const useOptimizationStore = create<OptimizationState>((set) => ({
       selectedResult: results.length > 0 ? results[0] : null,
     }),
 
+  setAllResults: (allResults) => set({ allResults }),
+
+  setParetoFront: (paretoFront) => set({ paretoFront }),
+
   setSelectedResult: (result) => set({ selectedResult: result }),
 
   setProposal: (proposal, clusterId, scenarioKey) =>
@@ -62,6 +72,8 @@ export const useOptimizationStore = create<OptimizationState>((set) => ({
       mode: 'balanced',
       customWeights: defaultWeights,
       results: [],
+      allResults: [],
+      paretoFront: [],
       selectedResult: null,
       proposal: false,
       clusterId: null,

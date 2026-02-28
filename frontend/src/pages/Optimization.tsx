@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Target, Play, CheckCircle, XCircle, Sparkles } from 'lucide-react'
+import {
+  ScatterChart, Scatter, XAxis, YAxis, ZAxis,
+  Tooltip as RechartsTooltip, ResponsiveContainer, Legend, CartesianGrid
+} from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -28,12 +32,16 @@ export function Optimization() {
     mode,
     customWeights,
     results,
+    allResults,
+    paretoFront,
     proposal,
     clusterId,
     scenarioKey,
     setMode,
     setCustomWeights,
     setResults,
+    setAllResults,
+    setParetoFront,
     setProposal,
     clearProposal,
   } = useOptimizationStore()
@@ -70,6 +78,8 @@ export function Optimization() {
         if (result) {
           console.log('Setting results:', result)
           setResults([result])
+          setAllResults(data.all_results ?? [])
+          setParetoFront(data.pareto_front ?? [])
           if (data.proposal && data.cluster_id !== undefined) {
             setProposal(true, data.cluster_id, data.scenario_key)
           }
@@ -515,6 +525,87 @@ export function Optimization() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Pareto Trade-off Frontier */}
+                {allResults.length > 0 && (
+                  <Card className="glass-panel">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Target className="h-4 w-4 text-teal-400" />
+                        Pareto Trade-off Frontier
+                        <span className="ml-auto text-xs font-normal text-muted-foreground">
+                          {paretoFront.length} non-dominated solution{paretoFront.length !== 1 ? 's' : ''} out of {allResults.length}
+                        </span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-xs text-muted-foreground mb-4">
+                        Teal points are Pareto-optimal — no other solution improves Quality without worsening Energy or CO₂. Grey points are dominated solutions.
+                      </p>
+                      <ResponsiveContainer width="100%" height={320}>
+                        <ScatterChart margin={{ top: 10, right: 30, bottom: 20, left: 10 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                          <XAxis
+                            dataKey="Energy"
+                            type="number"
+                            name="Energy"
+                            label={{ value: 'Energy (kWh)', position: 'insideBottom', offset: -10, fill: '#9ca3af', fontSize: 12 }}
+                            tick={{ fill: '#9ca3af', fontSize: 11 }}
+                            domain={['auto', 'auto']}
+                          />
+                          <YAxis
+                            dataKey="Quality"
+                            type="number"
+                            name="Quality"
+                            label={{ value: 'Quality', angle: -90, position: 'insideLeft', offset: 10, fill: '#9ca3af', fontSize: 12 }}
+                            tick={{ fill: '#9ca3af', fontSize: 11 }}
+                            domain={['auto', 'auto']}
+                          />
+                          <ZAxis range={[40, 40]} />
+                          <RechartsTooltip
+                            cursor={{ strokeDasharray: '3 3' }}
+                            content={({ payload }) => {
+                              if (!payload?.length) return null
+                              const d = payload[0].payload
+                              return (
+                                <div className="bg-background/95 border border-border rounded-lg p-3 text-xs space-y-1 shadow-lg">
+                                  <p className="font-semibold text-teal-400 mb-2">{payload[0].name === 'Pareto' ? '✦ Pareto-optimal' : '· Dominated'}</p>
+                                  <p>Quality: <span className="font-mono text-white">{formatNumber(d.Quality, 2)}</span></p>
+                                  <p>Energy: <span className="font-mono text-white">{formatNumber(d.Energy, 1)} kWh</span></p>
+                                  <p>CO₂: <span className="font-mono text-white">{formatNumber(d.CO2, 1)} kg</span></p>
+                                  <p>Score: <span className="font-mono text-white">{formatNumber(d.Score, 3)}</span></p>
+                                </div>
+                              )
+                            }}
+                          />
+                          <Legend
+                            verticalAlign="top"
+                            align="right"
+                            wrapperStyle={{ fontSize: '12px', paddingBottom: '8px' }}
+                          />
+                          {/* All dominated solutions */}
+                          <Scatter
+                            name="Dominated"
+                            data={allResults.filter(r =>
+                              !paretoFront.some(p => p.Energy === r.Energy && p.Quality === r.Quality)
+                            )}
+                            fill="rgba(156,163,175,0.4)"
+                            stroke="rgba(156,163,175,0.6)"
+                            strokeWidth={1}
+                          />
+                          {/* Pareto-optimal solutions */}
+                          <Scatter
+                            name="Pareto"
+                            data={paretoFront}
+                            fill="rgba(45,212,191,0.85)"
+                            stroke="#2dd4bf"
+                            strokeWidth={1.5}
+                          />
+                        </ScatterChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                )}
               </motion.div>
             ) : (
               <motion.div
