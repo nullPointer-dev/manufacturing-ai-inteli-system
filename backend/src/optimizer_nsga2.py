@@ -32,14 +32,23 @@ def initialize_population(pop_size, golden_ranges):
 # REALISM CLAMP
 # =========================================================
 def clamp_energy(pop_df, hist_df):
-
+    """Clamp energy values to realistic ranges based on historical data"""
+    
     if len(pop_df) == 0:
+        return pop_df
+    
+    # Energy column is created by batch_scorer (attach_predictions)
+    # It should exist after attach_predictions is called
+    if "Energy" not in pop_df.columns:
+        return pop_df
+    
+    if "Energy" not in hist_df.columns:
         return pop_df
 
     hist_energy = hist_df["Energy"].mean()
 
-    lower = hist_energy * 0.90
-    upper = hist_energy * 1.10
+    lower = hist_energy * 0.70  # Allow wider range for real optimization
+    upper = hist_energy * 1.30
 
     pop_df["Energy"] = pop_df["Energy"].clip(lower, upper)
     pop_df["CO2"] = pop_df["Energy"] * 0.82

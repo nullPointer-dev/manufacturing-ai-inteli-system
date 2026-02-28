@@ -13,6 +13,7 @@ def optimize_target(
     min_yield=None,
     min_performance=None,
     mode="balanced",
+    custom_weights=None,
     pop_size=60,
     generations=20
 ):
@@ -34,6 +35,7 @@ def optimize_target(
         pop_size=pop_size,
         generations=generations,
         mode=mode,
+        custom_weights=custom_weights,
         constraints=constraints
     )
 
@@ -50,8 +52,12 @@ def optimize_target(
 
     # ---------------------------------------------
     # Compute Score using scenario weights
+    # For custom mode, use the provided custom_weights;
+    # fall back to balanced if none supplied.
     # ---------------------------------------------
-    weights = scenario_weights(mode)
+    weights = scenario_weights(mode, custom_weights=custom_weights)
+    if weights is None:
+        weights = scenario_weights("balanced")
     results["Score"] = compute_fitness(results, weights)
 
     results = results.sort_values("Score", ascending=False)
