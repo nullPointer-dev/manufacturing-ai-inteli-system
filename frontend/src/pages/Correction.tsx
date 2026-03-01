@@ -48,10 +48,14 @@ export function Correction() {
     try {
       setError(null)
       const response = await correctionApi.getBatches()
+      console.log('Batches response:', response)
+      console.log('Number of batches:', response.batches?.length)
       setBatches(response.batches)
     } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Failed to load batches')
+      const errorMsg = err?.response?.data?.detail || err?.message || 'Failed to load batches'
+      setError(errorMsg)
       console.error('Error loading batches:', err)
+      console.error('Error details:', errorMsg)
     }
   }
 
@@ -132,12 +136,17 @@ export function Correction() {
       </div>
 
       {/* Batch Selection */}
-      <Card className="glass-panel">
-        <CardHeader>
-          <CardTitle>Select Batch for Analysis</CardTitle>
+      <Card className="glass-panel min-h-[320px]">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg">Select Batch for Analysis</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
+        <CardContent className="pb-8">
+          <div className="space-y-6">
+            {batches.length === 0 && !error && (
+              <div className="text-center p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <p className="text-blue-400 text-sm">Loading batches... ({batches.length} loaded)</p>
+              </div>
+            )}
             <AnimatedDropdown
               value={selectedBatch}
               onChange={handleBatchChange}

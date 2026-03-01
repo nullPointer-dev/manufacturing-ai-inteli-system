@@ -65,48 +65,39 @@ export function Anomaly() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="glass-panel border-violet-500/30">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Batches</p>
-                <p className="text-3xl font-bold text-violet-500">
-                  {isLoading ? '...' : anomalies?.total_batches || 0}
-                </p>
-              </div>
-              <Activity className="h-10 w-10 text-violet-500 opacity-50" />
+            <div>
+              <p className="text-sm text-muted-foreground">Total Batches</p>
+              <p className="text-3xl font-bold text-violet-500">
+                {isLoading ? '...' : anomalies?.total_batches || 0}
+              </p>
             </div>
           </CardContent>
         </Card>
 
         <Card className="glass-panel border-red-500/30">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  Anomalous Batches
-                  <Tooltip content="Batches flagged as anomalous by the Isolation Forest model based on deviation from normal patterns." />
-                </p>
-                <p className="text-3xl font-bold text-red-500">
-                  {isLoading ? '...' : anomalies?.anomalous_count || 0}
-                </p>
-              </div>
-              <AlertTriangle className="h-10 w-10 text-red-500 opacity-50" />
+            <div>
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                Anomalous Batches
+                <Tooltip content="Batches flagged as anomalous by the Isolation Forest model based on deviation from normal patterns." />
+              </p>
+              <p className="text-3xl font-bold text-red-500">
+                {isLoading ? '...' : anomalies?.anomalous_count || 0}
+              </p>
             </div>
           </CardContent>
         </Card>
 
         <Card className="glass-panel border-yellow-500/30">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  Contamination Rate
-                  <Tooltip content="Percentage of batches identified as anomalous. Default contamination parameter is 10%." />
-                </p>
-                <p className="text-3xl font-bold text-yellow-500">
-                  {isLoading ? '...' : `${anomalies?.contamination_rate || 0}%`}
-                </p>
-              </div>
-              <TrendingUp className="h-10 w-10 text-yellow-500 opacity-50" />
+            <div>
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                Contamination Rate
+                <Tooltip content="Percentage of batches identified as anomalous. Default contamination parameter is 10%." />
+              </p>
+              <p className="text-3xl font-bold text-yellow-500">
+                {isLoading ? '...' : `${anomalies?.contamination_rate || 0}%`}
+              </p>
             </div>
           </CardContent>
         </Card>

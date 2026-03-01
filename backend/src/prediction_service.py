@@ -97,6 +97,15 @@ def predict_batch(input_params: dict):
     perf_val = float(preds[4])
     energy = float(preds[5])
 
+    # Scale Content_Uniformity from actual range (89.8-106.3%) to 80-100%
+    # Formula: 80 + (uniformity - 89.8) * 20 / 16.5
+    yield_scaled = 80.0 + (uniformity - 89.8) * (20.0 / 16.5)
+    yield_scaled = max(80.0, min(100.0, yield_scaled))  # Clamp to 80-100%
+
+    # Scale performance_score from PCA range (-1.82 to +1.68) to percentage (0-100%)
+    perf_scaled = ((perf_val + 1.82) / 3.5) * 100
+    perf_scaled = max(0.0, min(100.0, perf_scaled))  # Clamp to 0-100%
+
     quality = (
         0.4 * hardness
         + 0.3 * dissolution
@@ -113,8 +122,8 @@ def predict_batch(input_params: dict):
 
         # system KPIs
         "Quality": quality,
-        "Yield": yield_val,
-        "Performance": perf_val,
+        "Yield": yield_scaled,  # Scaled Content_Uniformity (89.8-106.3% → 80-100%)
+        "Performance": perf_scaled,  # Scaled performance_score (-1.82 to +1.68 → 0-100%)
         "Energy": energy,
         "CO2": co2
     }

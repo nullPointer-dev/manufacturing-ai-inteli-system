@@ -42,8 +42,18 @@ def attach_predictions(df: pd.DataFrame) -> pd.DataFrame:
     df["Hardness"] = preds[:, 0]
     df["Dissolution_Rate"] = preds[:, 1]
     df["Content_Uniformity"] = preds[:, 2]
-    df["Yield"] = preds[:, 3]
-    df["Performance"] = preds[:, 4]
+    
+    # Scale Content_Uniformity from actual range (89.8-106.3%) to 80-100%
+    # Formula: 80 + (uniformity - 89.8) * 20 / 16.5
+    uniformity = preds[:, 2]
+    df["Yield"] = 80.0 + (uniformity - 89.8) * (20.0 / 16.5)
+    df["Yield"] = df["Yield"].clip(80, 100)  # Clamp to 80-100%
+    
+    # Scale performance_score from PCA range (-1.82 to +1.68) to percentage (0-100%)
+    perf_raw = preds[:, 4]
+    df["Performance"] = ((perf_raw + 1.82) / 3.5) * 100
+    df["Performance"] = df["Performance"].clip(0, 100)  # Clamp to 0-100%
+    
     df["Energy"] = preds[:, 5]
 
     df["Quality"] = (

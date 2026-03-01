@@ -124,57 +124,45 @@ export function GoldenSignature() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="glass-panel border-neon-green/30">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Signatures</p>
-                <p className="text-3xl font-bold text-neon-green">{registryEntries.length}</p>
-              </div>
-              <Award className="h-10 w-10 text-neon-green opacity-50" />
+            <div>
+              <p className="text-sm text-muted-foreground">Total Signatures</p>
+              <p className="text-3xl font-bold text-neon-green">{registryEntries.length}</p>
             </div>
           </CardContent>
         </Card>
 
         <Card className="glass-panel border-violet-500/30">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active Modes</p>
-                <p className="text-3xl font-bold text-violet-500">
-                  {Object.keys(registry).length}
-                </p>
-              </div>
-              <TrendingUp className="h-10 w-10 text-violet-500 opacity-50" />
+            <div>
+              <p className="text-sm text-muted-foreground">Active Modes</p>
+              <p className="text-3xl font-bold text-violet-500">
+                {Object.keys(registry).length}
+              </p>
             </div>
           </CardContent>
         </Card>
 
         <Card className="glass-panel border-neon-purple/30">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Recent Updates</p>
-                <p className="text-3xl font-bold text-neon-purple">
-                  {history.filter((h) => {
-                    const date = new Date(h.time)
-                    const now = new Date()
-                    const hoursDiff = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-                    return hoursDiff < 24
-                  }).length}
-                </p>
-              </div>
-              <Clock className="h-10 w-10 text-neon-purple opacity-50" />
+            <div>
+              <p className="text-sm text-muted-foreground">Recent Updates</p>
+              <p className="text-3xl font-bold text-neon-purple">
+                {history.filter((h) => {
+                  const date = new Date(h.time)
+                  const now = new Date()
+                  const hoursDiff = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+                  return hoursDiff < 24
+                }).length}
+              </p>
             </div>
           </CardContent>
         </Card>
 
         <Card className="glass-panel border-red-500/30">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Human Rejections</p>
-                <p className="text-3xl font-bold text-red-400">{rejectionData.rejections.length}</p>
-              </div>
-              <XCircle className="h-10 w-10 text-red-400 opacity-50" />
+            <div>
+              <p className="text-sm text-muted-foreground">Human Rejections</p>
+              <p className="text-3xl font-bold text-red-400">{rejectionData.rejections.length}</p>
             </div>
           </CardContent>
         </Card>

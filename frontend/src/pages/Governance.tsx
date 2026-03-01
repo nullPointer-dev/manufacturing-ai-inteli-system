@@ -60,14 +60,11 @@ export function Governance() {
       <div className="grid gap-4 md:grid-cols-5">
         <Card className="glass-panel border-neon-green/30">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Model Version</p>
-                <p className="text-3xl font-bold text-neon-green">
-                  v{latestVersion?.model_version || 1}
-                </p>
-              </div>
-              <Shield className="h-10 w-10 text-neon-green opacity-50" />
+            <div>
+              <p className="text-sm text-muted-foreground">Model Version</p>
+              <p className="text-3xl font-bold text-neon-green">
+                v{latestVersion?.model_version || 1}
+              </p>
             </div>
           </CardContent>
         </Card>

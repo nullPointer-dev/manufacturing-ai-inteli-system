@@ -222,82 +222,219 @@ export function Dashboard() {
       </div>
 
       {/* Production Trends */}
-      <Card className="glass-panel">
-        <CardHeader>
-          <CardTitle>Production Performance Trends</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {trendsLoading ? (
-            <div className="h-64 flex items-center justify-center text-muted-foreground">
-              Loading trends data...
-            </div>
-          ) : productionTrends && productionTrends.trends.length > 0 ? (
-            <ResponsiveContainer width="100%" height={320}>
-              <LineChart data={productionTrends.trends}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis 
-                  dataKey="batch_number" 
-                  stroke="hsl(var(--muted-foreground))"
-                  label={{ value: 'Batch Number', position: 'insideBottom', offset: -5 }}
-                />
-                <YAxis 
-                  stroke="hsl(var(--muted-foreground))"
-                  label={{ value: 'Value', angle: -90, position: 'insideLeft' }}
-                />
-                <RechartsTooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                  }}
-                  labelFormatter={(value) => `Batch #${value}`}
-                />
-                <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="quality" 
-                  stroke="#10b981" 
-                  name="Quality Score"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="energy" 
-                  stroke="#f59e0b" 
-                  name="Energy (kWh)"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="performance" 
-                  stroke="#3b82f6" 
-                  name="Performance"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="content_uniformity" 
-                  stroke="#8b5cf6" 
-                  name="Content Uniformity (%)"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-muted-foreground">
-              No trends data available
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 grid-cols-1">
+        {/* Quality Score Chart */}
+        <Card className="glass-panel">
+          <CardHeader>
+            <CardTitle>Quality Score Trends</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {trendsLoading ? (
+              <div className="h-64 flex items-center justify-center text-muted-foreground">
+                Loading trends data...
+              </div>
+            ) : productionTrends && productionTrends.trends.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={productionTrends.trends}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="batch_number" 
+                    stroke="hsl(var(--muted-foreground))"
+                    domain={[0, 'dataMax']}
+                    type="number"
+                    label={{ value: 'Batch Number', position: 'insideBottom', offset: -5 }}
+                  />
+                  <YAxis 
+                    stroke="hsl(var(--muted-foreground))"
+                    domain={[0, 120]}
+                    label={{ value: 'Quality Score', angle: -90, position: 'insideLeft', offset: 10, style: { textAnchor: 'middle' } }}
+                  />
+                  <RechartsTooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                    }}
+                    labelFormatter={(value) => `Batch #${value}`}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="quality" 
+                    stroke="#10b981" 
+                    name="Quality Score"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-muted-foreground">
+                No trends data available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Energy Chart */}
+        <Card className="glass-panel">
+          <CardHeader>
+            <CardTitle>Energy Consumption Trends</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {trendsLoading ? (
+              <div className="h-64 flex items-center justify-center text-muted-foreground">
+                Loading trends data...
+              </div>
+            ) : productionTrends && productionTrends.trends.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={productionTrends.trends}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="batch_number" 
+                    stroke="hsl(var(--muted-foreground))"
+                    domain={[0, 'dataMax']}
+                    type="number"
+                    label={{ value: 'Batch Number', position: 'insideBottom', offset: -5 }}
+                  />
+                  <YAxis 
+                    stroke="hsl(var(--muted-foreground))"
+                    domain={[0, 18000]}
+                    label={{ value: 'Energy (kWh)', angle: -90, position: 'insideLeft', offset: 0, style: { textAnchor: 'middle' } }}
+                  />
+                  <RechartsTooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                    }}
+                    labelFormatter={(value) => `Batch #${value}`}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="energy" 
+                    stroke="#f59e0b" 
+                    name="Energy (kWh)"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-muted-foreground">
+                No trends data available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Performance Chart */}
+        <Card className="glass-panel">
+          <CardHeader>
+            <CardTitle>Performance Score Trends</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {trendsLoading ? (
+              <div className="h-64 flex items-center justify-center text-muted-foreground">
+                Loading trends data...
+              </div>
+            ) : productionTrends && productionTrends.trends.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={productionTrends.trends}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="batch_number" 
+                    stroke="hsl(var(--muted-foreground))"
+                    domain={[0, 'dataMax']}
+                    type="number"
+                    label={{ value: 'Batch Number', position: 'insideBottom', offset: -5 }}
+                  />
+                  <YAxis 
+                    stroke="hsl(var(--muted-foreground))"
+                    domain={[0, 600]}
+                    label={{ value: 'Performance Score', angle: -90, position: 'insideLeft', offset: 10, style: { textAnchor: 'middle' } }}
+                  />
+                  <RechartsTooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                    }}
+                    labelFormatter={(value) => `Batch #${value}`}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="performance" 
+                    stroke="#3b82f6" 
+                    name="Performance"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-muted-foreground">
+                No trends data available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Content Uniformity Chart */}
+        <Card className="glass-panel">
+          <CardHeader>
+            <CardTitle>Content Uniformity Trends</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {trendsLoading ? (
+              <div className="h-64 flex items-center justify-center text-muted-foreground">
+                Loading trends data...
+              </div>
+            ) : productionTrends && productionTrends.trends.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={productionTrends.trends}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="batch_number" 
+                    stroke="hsl(var(--muted-foreground))"
+                    domain={[0, 'dataMax']}
+                    type="number"
+                    label={{ value: 'Batch Number', position: 'insideBottom', offset: -5 }}
+                  />
+                  <YAxis 
+                    stroke="hsl(var(--muted-foreground))"
+                    domain={[0, 120]}
+                    label={{ value: 'Content Uniformity (%)', angle: -90, position: 'insideLeft', offset: 10, style: { textAnchor: 'middle' } }}
+                  />
+                  <RechartsTooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                    }}
+                    labelFormatter={(value) => `Batch #${value}`}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="content_uniformity" 
+                    stroke="#8b5cf6" 
+                    name="Content Uniformity (%)"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-muted-foreground">
+                No trends data available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </motion.div>
     </>
   )

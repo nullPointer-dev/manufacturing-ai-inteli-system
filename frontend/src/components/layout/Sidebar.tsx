@@ -13,6 +13,7 @@ import {
   Upload,
   FileSpreadsheet,
   CheckCircle2,
+  Factory,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useState, useRef } from 'react'
@@ -29,6 +30,7 @@ const navItems = [
   { to: '/correction', icon: Wrench, label: 'Real-Time Correction' },
   { to: '/anomaly', icon: AlertTriangle, label: 'Anomaly & Reliability' },
   { to: '/governance', icon: Shield, label: 'Model Governance' },
+  { to: '/industrial-validation', icon: Factory, label: 'Industrial Validation' },
 ]
 
 export function Sidebar() {

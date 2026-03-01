@@ -7,6 +7,7 @@ import { GoldenSignature } from '@/pages/GoldenSignature'
 import { Correction } from '@/pages/Correction'
 import { Anomaly } from '@/pages/Anomaly'
 import { Governance } from '@/pages/Governance'
+import { IndustrialValidation } from '@/pages/IndustrialValidation'
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="/correction" element={<Correction />} />
           <Route path="/anomaly" element={<Anomaly />} />
           <Route path="/governance" element={<Governance />} />
+          <Route path="/industrial-validation" element={<IndustrialValidation />} />
         </Routes>
       </Layout>
     </Router>

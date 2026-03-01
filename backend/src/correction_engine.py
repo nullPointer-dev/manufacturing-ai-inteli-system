@@ -61,7 +61,7 @@ def analyze_batch_against_golden(batch_row, golden_ranges, model = None, feature
         if severity == "OK":
             suggestion = "Within optimal range"
         elif not beneficial:
-            suggestion = "Monitor only — correction may reduce quality"
+            suggestion = "Monitor only, correction may reduce quality"
         elif current > mean:
             suggestion = f"Reduce toward {mean:.2f}"
         else:

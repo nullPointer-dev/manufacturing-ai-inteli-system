@@ -93,8 +93,13 @@ export function AnimatedDropdown({
             </div>
 
             {/* Options List */}
-            <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
-              {filteredOptions.length > 0 ? (
+            <div className="max-h-[400px] min-h-[100px] overflow-y-auto custom-scrollbar">
+              {options.length === 0 ? (
+                <div className="p-8 text-center">
+                  <p className="text-sm text-yellow-500 font-semibold">No batches available</p>
+                  <p className="text-xs text-muted-foreground mt-1">Please ensure data is loaded</p>
+                </div>
+              ) : filteredOptions.length > 0 ? (
                 <div className="p-1">
                   {filteredOptions.map((option, index) => (
                     <motion.div
@@ -119,7 +124,7 @@ export function AnimatedDropdown({
                 </div>
               ) : (
                 <div className="p-8 text-center text-muted-foreground">
-                  <p className="text-sm">No batches found</p>
+                  <p className="text-sm">No matches for "{searchTerm}"</p>
                 </div>
               )}
             </div>

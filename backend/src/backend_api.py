@@ -36,6 +36,7 @@ from integration_api import (
     api_get_asset_reliability,
 )
 from golden_updater import _safe_load, HISTORY_FILE
+from industrial_validation import calculate_industrial_validation
 
 app = FastAPI(
     title="Manufacturing AI Intelligence API",
@@ -92,6 +93,14 @@ class RejectGoldenRequest(BaseModel):
     proposed_metrics: Dict[str, float]
     reason: str = "User rejected"
     scenario_key: Optional[str] = None
+
+class IndustrialValidationRequest(BaseModel):
+    electricity_cost: float = 0.12  # $ per kWh
+    batches_per_day: float = 10.0
+    deployment_cost: float = 50000.0  # $ one-time
+    annual_maintenance_cost: float = 5000.0  # $ per year
+    operating_days_per_year: int = 250
+    current_batch_params: Optional[Dict[str, Any]] = None
 
 # =========================================================
 # API Routes
@@ -295,6 +304,28 @@ def get_production_trends():
     try:
         return api_get_production_trends()
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/industrial_validation")
+def industrial_validation(request: IndustrialValidationRequest):
+    """
+    Calculate industrial validation metrics including ROI, payback period,
+    CO2 savings, and energy efficiency based on real-time predictions
+    and correction engine simulations.
+    """
+    try:
+        result = calculate_industrial_validation(
+            electricity_cost=request.electricity_cost,
+            batches_per_day=request.batches_per_day,
+            deployment_cost=request.deployment_cost,
+            annual_maintenance_cost=request.annual_maintenance_cost,
+            current_batch_params=request.current_batch_params,
+            operating_days_per_year=request.operating_days_per_year,
+        )
+        return result
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 # =========================================================

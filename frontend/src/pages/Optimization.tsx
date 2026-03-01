@@ -405,7 +405,7 @@ export function Optimization() {
                     <div className="grid grid-cols-5 gap-4 mb-6">
                       {[
                         { key: 'Quality', label: 'Quality', unit: '' },
-                        { key: 'Yield', label: 'Yield', unit: '' },
+                        { key: 'Yield', label: 'Yield', unit: '%' },
                         { key: 'Performance', label: 'Performance', unit: '' },
                         { key: 'Energy', label: 'Energy Used', unit: 'kWh' },
                         { key: 'CO2', label: 'CO2 Emissions', unit: 'kg' }
@@ -413,10 +413,7 @@ export function Optimization() {
                         <div key={metric.key} className="text-center">
                           <p className="text-xs text-muted-foreground mb-1">{metric.label}</p>
                           <p className="text-2xl font-bold text-teal-400">
-                            {formatNumber(results[0][metric.key] || 0, 1)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {metric.unit}
+                            {formatNumber(results[0][metric.key] || 0, 1)}{metric.unit}
                           </p>
                         </div>
                       ))}
@@ -567,9 +564,13 @@ export function Optimization() {
                             content={({ payload }) => {
                               if (!payload?.length) return null
                               const d = payload[0].payload
+                              // Check if this point is in the Pareto front
+                              const isPareto = paretoFront.some(p => 
+                                Math.abs(p.Energy - d.Energy) < 0.01 && Math.abs(p.Quality - d.Quality) < 0.01
+                              )
                               return (
                                 <div className="bg-background/95 border border-border rounded-lg p-3 text-xs space-y-1 shadow-lg">
-                                  <p className="font-semibold text-teal-400 mb-2">{payload[0].name === 'Pareto' ? '✦ Pareto-optimal' : '· Dominated'}</p>
+                                  <p className="font-semibold text-teal-400 mb-2">{isPareto ? '✦ Pareto' : 'Dominated'}</p>
                                   <p>Quality: <span className="font-mono text-white">{formatNumber(d.Quality, 2)}</span></p>
                                   <p>Energy: <span className="font-mono text-white">{formatNumber(d.Energy, 1)} kWh</span></p>
                                   <p>CO₂: <span className="font-mono text-white">{formatNumber(d.CO2, 1)} kg</span></p>

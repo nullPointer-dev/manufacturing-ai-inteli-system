@@ -351,4 +351,70 @@ export const anomalyApi = {
   },
 }
 
+// Industrial Validation API
+export const industrialValidationApi = {
+  calculate: async (params: {
+    electricity_cost: number
+    batches_per_day: number
+    deployment_cost: number
+    annual_maintenance_cost: number
+    operating_days_per_year?: number
+    current_batch_params?: Record<string, any>
+  }): Promise<{
+    inputs: {
+      electricity_cost: number
+      batches_per_day: number
+      deployment_cost: number
+      annual_maintenance_cost: number
+      operating_days_per_year: number
+      annual_batches: number
+    }
+    baseline: {
+      quality: number
+      yield: number
+      performance: number
+      energy_per_batch: number
+      co2_per_batch: number
+    }
+    optimized: {
+      quality: number
+      yield: number
+      performance: number
+      energy_per_batch: number
+      co2_per_batch: number
+    }
+    improvements: {
+      quality_improvement_pct: number
+      yield_improvement_pct: number
+      performance_improvement_pct: number
+      energy_saved_per_batch: number
+      co2_saved_per_batch: number
+    }
+    annual_savings: {
+      energy_saved_kwh: number
+      co2_saved_kg: number
+      energy_cost_savings: number
+      raw_material_savings: number
+      quality_savings: number
+      performance_savings: number
+      total_savings: number
+      net_benefit: number
+    }
+    financial: {
+      roi_3_year_pct: number
+      payback_period_years: number
+      payback_period_months: number
+    }
+    environmental: {
+      energy_efficiency_improvement_pct: number
+      co2_reduction_pct: number
+      trees_equivalent: number
+    }
+    status: string
+  }> => {
+    const { data } = await api.post('/industrial_validation', params)
+    return data
+  },
+}
+
 export default api
