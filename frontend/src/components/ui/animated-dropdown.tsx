@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, Search } from 'lucide-react'
+import { ChevronDown, Search, Loader2 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
 interface AnimatedDropdownProps {
@@ -8,6 +8,7 @@ interface AnimatedDropdownProps {
   options: Array<{ value: string; label: string }>
   placeholder?: string
   disabled?: boolean
+  loading?: boolean
 }
 
 export function AnimatedDropdown({
@@ -16,6 +17,7 @@ export function AnimatedDropdown({
   options,
   placeholder = '-- Select an option --',
   disabled = false,
+  loading = false,
 }: AnimatedDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -50,20 +52,31 @@ export function AnimatedDropdown({
       {/* Dropdown Button */}
       <motion.button
         type="button"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-        disabled={disabled}
+        onClick={() => !disabled && !loading && setIsOpen(!isOpen)}
+        disabled={disabled || loading}
         className="w-full px-4 py-3 rounded-lg bg-secondary/50 border border-border focus:outline-none focus:ring-2 focus:ring-primary text-left flex items-center justify-between transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary/70"
-        whileHover={!disabled ? { scale: 1.01 } : {}}
-        whileTap={!disabled ? { scale: 0.99 } : {}}
+        whileHover={!disabled && !loading ? { scale: 1.01 } : {}}
+        whileTap={!disabled && !loading ? { scale: 0.99 } : {}}
       >
-        <span className={selectedOption ? 'text-foreground' : 'text-muted-foreground'}>
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
+        {loading ? (
+          <span className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Loading batches...</span>
+          </span>
+        ) : (
+          <span className={selectedOption ? 'text-foreground' : 'text-muted-foreground'}>
+            {selectedOption ? selectedOption.label : placeholder}
+          </span>
+        )}
         <motion.div
           animate={{ rotate: isOpen ? 180 : 0 }}
           transition={{ duration: 0.2 }}
         >
-          <ChevronDown className="h-5 w-5" />
+          {loading ? (
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          ) : (
+            <ChevronDown className="h-5 w-5" />
+          )}
         </motion.div>
       </motion.button>
 
@@ -94,7 +107,18 @@ export function AnimatedDropdown({
 
             {/* Options List */}
             <div className="max-h-[400px] min-h-[100px] overflow-y-auto custom-scrollbar">
-              {options.length === 0 ? (
+              {loading ? (
+                <div className="p-3 space-y-1">
+                  {[...Array(5)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      className="h-10 rounded-md bg-secondary/40"
+                      animate={{ opacity: [0.4, 0.8, 0.4] }}
+                      transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.15 }}
+                    />
+                  ))}
+                </div>
+              ) : options.length === 0 ? (
                 <div className="p-8 text-center">
                   <p className="text-sm text-yellow-500 font-semibold">No batches available</p>
                   <p className="text-xs text-muted-foreground mt-1">Please ensure data is loaded</p>

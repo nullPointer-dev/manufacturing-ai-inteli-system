@@ -38,6 +38,7 @@ export function Correction() {
   const [batchInfo, setBatchInfo] = useState<any>(null)
   const [summary, setSummary] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [batchesLoading, setBatchesLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export function Correction() {
 
   const loadBatches = async () => {
     try {
+      setBatchesLoading(true)
       setError(null)
       const response = await correctionApi.getBatches()
       console.log('Batches response:', response)
@@ -56,6 +58,8 @@ export function Correction() {
       setError(errorMsg)
       console.error('Error loading batches:', err)
       console.error('Error details:', errorMsg)
+    } finally {
+      setBatchesLoading(false)
     }
   }
 
@@ -142,11 +146,6 @@ export function Correction() {
         </CardHeader>
         <CardContent className="pb-8">
           <div className="space-y-6">
-            {batches.length === 0 && !error && (
-              <div className="text-center p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                <p className="text-blue-400 text-sm">Loading batches... ({batches.length} loaded)</p>
-              </div>
-            )}
             <AnimatedDropdown
               value={selectedBatch}
               onChange={handleBatchChange}
@@ -156,6 +155,7 @@ export function Correction() {
               }))}
               placeholder="-- Select a Batch --"
               disabled={loading}
+              loading={batchesLoading}
             />
             {loading && (
               <div className="text-center">
