@@ -25,7 +25,7 @@ export function Dashboard() {
   // Sync system status to store when data changes
   useEffect(() => {
     if (systemStatus) setStatus(systemStatus)
-  }, [systemStatus])
+  }, [systemStatus, setStatus])
 
   // Fetch dashboard statistics from real data
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -134,7 +134,7 @@ export function Dashboard() {
         className="space-y-6"
       >
       {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-primary/20 to-violet-500/20 p-6 border border-violet-500/30">
+      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-primary/20 to-teal-500/20 p-6 border border-teal-500/30">
         <div className="relative z-10">
           <h1 className="text-3xl font-bold mb-2">Manufacturing AI Intelligence System</h1>
           <p className="text-muted-foreground">
@@ -153,7 +153,7 @@ export function Dashboard() {
           value={metrics.quality}
           trend={getTrend(trends.quality)}
           trendValue={trends.quality}
-          tooltip="Overall quality score based on defect rates, consistency, and product specifications. Higher is better."
+          tooltip="Average quality score across all batches in the dataset (weighted combination of Hardness, Dissolution Rate, and Content Uniformity). Trend compares the most recent 20% of batches to the preceding 80%."
         />
         <MetricCard
           title="Yield"
@@ -161,7 +161,7 @@ export function Dashboard() {
           unit="%"
           trend={getTrend(trends.yield)}
           trendValue={trends.yield}
-          tooltip="Content uniformity percentage - measures consistency of tablet composition across batches. Higher values indicate better manufacturing control."
+          tooltip="Average Content Uniformity across all batches (%). Represents tablet composition consistency across the entire dataset. Trend compares the most recent 20% of batches to the preceding 80%."
         />
         <MetricCard
           title="Performance"
@@ -169,7 +169,7 @@ export function Dashboard() {
           unit=" Score"
           trend={getTrend(trends.performance)}
           trendValue={trends.performance}
-          tooltip="Production throughput score (0-100) - measures quality output per unit time. Higher scores indicate better production efficiency."
+          tooltip="Average throughput efficiency score (0-100) across all batches — measures quality output per unit processing time, normalised to the best and worst batch in the dataset. Trend compares the most recent 20% of batches to the preceding 80%."
         />
         <MetricCard
           title="Energy"
@@ -177,7 +177,7 @@ export function Dashboard() {
           unit=" kWh"
           trend={getEnergyTrend(trends.energy)}
           trendValue={Math.abs(trends.energy)}
-          tooltip="Total energy consumption per batch. Lower values indicate better energy efficiency."
+          tooltip="Average energy consumption per batch across the entire dataset. Lower values indicate better energy efficiency. Trend compares the most recent 20% of batches to the preceding 80%."
         />
         <MetricCard
           title="CO₂ Emissions"
@@ -185,7 +185,7 @@ export function Dashboard() {
           unit=" kg"
           trend={getEnergyTrend(trends.co2)}
           trendValue={Math.abs(trends.co2)}
-          tooltip="Carbon dioxide emissions calculated from energy usage (0.82 kg CO₂ per kWh). Lower is better."
+          tooltip="Average CO₂ emissions per batch across the entire dataset (0.82 kg CO₂ per kWh). Trend compares the most recent 20% of batches to the preceding 80%."
         />
         <Card className="glass-panel h-full relative overflow-hidden group">
           <CardContent className="p-6 flex flex-col justify-between h-full">
@@ -419,7 +419,7 @@ export function Dashboard() {
                   <Line 
                     type="monotone" 
                     dataKey="content_uniformity" 
-                    stroke="#8b5cf6" 
+                    stroke="#14b8a6" 
                     name="Content Uniformity (%)"
                     strokeWidth={2}
                     dot={{ r: 3 }}
