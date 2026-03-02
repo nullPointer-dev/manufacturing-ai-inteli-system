@@ -40,7 +40,7 @@ if (-not (Test-Path "$FRONT\node_modules")) {
 }
 
 # ---- free ports if already in use -------------------------
-foreach ($port in @(8000, 5173)) {
+foreach ($port in @(8001, 5173)) {
     $conn = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
     if ($conn) {
         Write-Info "Freeing port $port (PID $($conn.OwningProcess))..."
@@ -50,7 +50,7 @@ foreach ($port in @(8000, 5173)) {
 }
 
 # ---- start backend -----------------------------------------
-Write-Info "Starting backend (FastAPI) on http://localhost:8000 ..."
+Write-Info "Starting backend (FastAPI) on http://localhost:8001 ..."
 
 $backJob = Start-Process -FilePath $PYTHON `
     -ArgumentList $ENTRY `
@@ -63,14 +63,14 @@ Start-Sleep -Seconds 3
 $healthOk = $false
 for ($i = 1; $i -le 10; $i++) {
     try {
-        $r = Invoke-RestMethod -Uri "http://localhost:8000/api/health" -TimeoutSec 2 -ErrorAction Stop
+        $r = Invoke-RestMethod -Uri "http://localhost:8001/api/health" -TimeoutSec 2 -ErrorAction Stop
         if ($r.status -eq "healthy") { $healthOk = $true; break }
     } catch {}
     Start-Sleep -Seconds 1
 }
 
 if ($healthOk) {
-    Write-Ok "Backend healthy  ->  http://localhost:8000"
+    Write-Ok "Backend healthy  ->  http://localhost:8001"
 } else {
     Write-Err "Backend did not respond after 10 s. Check the backend window for errors."
 }
@@ -102,7 +102,7 @@ if ($frontOk) {
 # ---- open browser ------------------------------------------
 Write-Header "System ready"
 Write-Host "  Frontend  :  http://localhost:5173" -ForegroundColor White
-Write-Host "  API docs  :  http://localhost:8000/docs" -ForegroundColor White
+Write-Host "  API docs  :  http://localhost:8001/docs" -ForegroundColor White
 Write-Host ""
 Write-Host "  Close this window (or press Ctrl+C) to shut everything down." -ForegroundColor DarkGray
 Write-Host ""
