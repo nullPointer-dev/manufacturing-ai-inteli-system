@@ -22,6 +22,8 @@
 - [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
 
+> **Pages**: Dashboard · Prediction · Optimization · Golden Signature · Anomaly · Correction · Governance · Industrial Validation
+
 ---
 
 ## Overview
@@ -37,7 +39,7 @@ This system ingests batch-level manufacturing data from two Excel sources — **
 - A **correction engine** compares live batches to the golden signature and recommends actionable parameter corrections
 - A **model governance layer** tracks model versions, detects drift, and retrains automatically when data distribution shifts
 
-All components are exposed through a FastAPI REST backend and consumed by a React + TypeScript dashboard with 7 purpose-built pages.
+All components are exposed through a FastAPI REST backend and consumed by a React + TypeScript dashboard with 8 purpose-built pages.
 
 ---
 
@@ -48,6 +50,7 @@ All components are exposed through a FastAPI REST backend and consumed by a Reac
 The real-time operational overview page.
 
 - **Key metric cards**: Quality Score, Content Uniformity (Yield), Performance Score, Energy (kWh), CO₂ Emissions (kg) — each showing **dataset-wide averages** across all batches, with trend direction comparing the most recent 20% of batches against the first 80% baseline
+- **Energy Efficiency card**: 0–100% score showing how close the dataset-wide average energy consumption is to the best-ever (lowest energy) batch recorded
 - **Anomaly summary card**: Live count of flagged batches with contamination rate and one-click navigation to the Anomaly page
 - **Production Performance Trends chart**: Line chart showing Quality, Energy, Performance, and Content Uniformity over the most recent batches
 - All cards refreshed on a 30–120 second polling cycle via React Query
@@ -153,11 +156,50 @@ Full model lifecycle visibility.
 **Check Drift & Retrain button**
 - Compares current dataset statistics against the training baseline (energy mean shift > 10%, anomaly rate > 15%)
 - If drift is detected and cooldown period (6 hours) has passed, automatically retrains and logs a new version
-- Cooldown prevents excessive retraining when data is stable
+- Shows inline status badge: “Retrained successfully”, “No drift detected”, or “Cooldown active”
 
 **Feature Importance chart**
 - SHAP-based global feature importance averaged across all 6 target estimators
-- Horizontal bar chart showing top contributing process parameters
+- Animated horizontal bar chart showing top 15 contributing process parameters
+- Includes loading skeleton with pulse animation while SHAP values compute
+
+**Dataset Upload**
+- Drag-and-drop (or file picker) upload for a new pair of Excel files
+- System auto-classifies which file is production data vs process sensor data based on column patterns and sheet structure
+- Backs up current files, wipes stale model state, and retrains automatically on upload
+
+---
+
+### 8. Industrial Validation
+
+Business-case ROI calculator powered by the live prediction and correction engines.
+
+**Input Parameters (all adjustable via sliders)**
+- Electricity cost (₹/kWh)
+- Batches per day
+- One-time deployment cost (₹)
+- Annual maintenance cost (₹)
+- Operating days per year
+
+**Financial Impact**
+- 3-year ROI %
+- Payback period (months)
+- Annual net benefit and total annual savings
+
+**Environmental Impact**
+- CO₂ reduction % and annual CO₂ saved (kg)
+- Annual energy saved (kWh)
+- Energy efficiency improvement %
+- Trees-equivalent carbon offset
+
+**Operational Improvements**
+- Quality, Yield, Performance improvement % (AI-optimized vs current baseline)
+
+**Detailed Breakdown**
+- Side-by-side Baseline vs Optimized performance table (Quality, Yield, Performance, Energy/batch, CO₂/batch)
+- Annual Savings Breakdown: energy cost savings, raw material savings, quality savings, performance savings, minus maintenance cost, equals net annual benefit
+
+**How it works**: The backend runs the current batch parameters through the prediction model to get baseline metrics, then applies the correction engine against the golden signature to simulate the optimized scenario. The delta is extrapolated to annual scale using the configured production parameters.
 
 ---
 
@@ -222,6 +264,16 @@ Full model lifecycle visibility.
 - Computes mean absolute SHAP values per feature, averaged across all 6 targets
 - Returns ranked feature importance list for the governance dashboard
 
+### Industrial Validation (`industrial_validation.py`)
+- Accepts user-defined production economics: electricity cost, batches/day, deployment cost, maintenance cost, operating days
+- Runs the **prediction model** on default batch parameters to establish a current baseline (quality, yield, energy, CO₂)
+- Queries the **golden signature registry** and runs the **correction engine** to simulate the optimized scenario
+- Computes the improvement delta (quality %, yield %, performance %, energy saved/batch, CO₂ saved/batch)
+- Extrapolates to annual scale: energy cost savings, raw material savings, quality savings, performance savings
+- Calculates **3-year ROI %**, **payback period (months)**, and **net annual benefit** after maintenance costs
+- Computes environmental metrics: CO₂ reduction %, annual CO₂ saved, energy efficiency improvement %, and trees-equivalent offset
+- Falls back to simulated improvements when no golden signature exists yet
+
 ---
 
 ## Architecture
@@ -278,8 +330,8 @@ The system expects two Excel files placed in `backend/data/`:
 
 When you upload a new pair via the **Governance** page upload endpoint, the system automatically:
 1. Classifies which file is production vs process data
-2. Backs up the previous files
-3. Wipes stale state (`model_versions.json`, `golden_session.json`, `drift_baseline.json`)
+2. Backs up the previous files to `backend/data/backups/`
+3. Wipes stale state (`golden_session.json`, `drift_baseline.json`)
 4. Retrains the model on the new data from scratch
 
 ---
@@ -417,7 +469,8 @@ manufacturing-ai-inteli-system/
 │       │   ├── GoldenSignature.tsx
 │       │   ├── Anomaly.tsx
 │       │   ├── Correction.tsx
-│       │   └── Governance.tsx
+│       │   ├── Governance.tsx
+│       │   └── IndustrialValidation.tsx
 │       ├── components/
 │       │   ├── dashboard/          # MetricCard, Gauge, GoldenTimeline
 │       │   ├── layout/             # Header, Sidebar, Layout
