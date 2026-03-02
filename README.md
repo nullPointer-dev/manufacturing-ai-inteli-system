@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178c6.svg)](https://www.typescriptlang.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688.svg)](https://fastapi.tiangolo.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com/)
 
 ---
 
@@ -47,7 +47,7 @@ All components are exposed through a FastAPI REST backend and consumed by a Reac
 
 The real-time operational overview page.
 
-- **Key metric cards**: Quality Score, Content Uniformity (Yield), Performance Score, Energy (kWh), CO₂ Emissions (kg) — each showing current batch-level averages and trend direction
+- **Key metric cards**: Quality Score, Content Uniformity (Yield), Performance Score, Energy (kWh), CO₂ Emissions (kg) — each showing **dataset-wide averages** across all batches, with trend direction comparing the most recent 20% of batches against the first 80% baseline
 - **Anomaly summary card**: Live count of flagged batches with contamination rate and one-click navigation to the Anomaly page
 - **Production Performance Trends chart**: Line chart showing Quality, Energy, Performance, and Content Uniformity over the most recent batches
 - All cards refreshed on a 30–120 second polling cycle via React Query
@@ -236,12 +236,12 @@ Full model lifecycle visibility.
 └──────────────────────┬────────────────────────────────────┘
                        │  HTTP REST
 ┌──────────────────────▼────────────────────────────────────┐
-│                  FastAPI (port 8000)                       │
-│   /api/predict         /api/optimize/auto                  │
-│   /api/optimize/target /api/golden/accept                  │
-│   /api/anomalies       /api/asset-reliability              │
-│   /api/check_retrain   /api/feature-importance             │
-│   /api/data-files/upload  /api/rejections/log              │
+│                  FastAPI (port 8001)                       │
+│   /api/predict         /api/optimize_auto                  │
+│   /api/optimize_target /api/accept_golden                  │
+│   /api/anomalies       /api/asset_reliability              │
+│   /api/check_retrain   /api/feature_importance             │
+│   /api/data-files/upload  /api/rejection_history           │
 └──────────────────────┬────────────────────────────────────┘
                        │
 ┌──────────────────────▼────────────────────────────────────┐
@@ -258,9 +258,10 @@ Full model lifecycle visibility.
 │  backend/data/   batch_production_data.xlsx                │
 │                  batch_process_data.xlsx                   │
 │  backend/models/ model.pkl  feature_columns.pkl            │
-│                  model_metrics.json  model_versions.json   │
-│                  golden_session.json golden_archive.json   │
-│                  golden_history.json drift_baseline.json   │
+│                  model_metrics.json                        │
+│                  golden_session.json golden_registry.json  │
+│                  golden_archive.json golden_history.json   │
+│                  golden_rejections.json drift_baseline.json│
 └───────────────────────────────────────────────────────────┘
 ```
 
@@ -308,7 +309,7 @@ venv\Scripts\activate          # Windows
 pip install -r ../requirements.txt
 cd src
 python train_model.py          # trains initial model
-python backend_api.py          # starts on port 8000
+python backend_api.py          # starts on port 8001
 
 # Frontend (new terminal)
 cd frontend
@@ -321,8 +322,8 @@ npm run dev                    # starts on port 5173
 | Service | URL |
 |---------|-----|
 | Frontend UI | http://localhost:5173 |
-| Backend API | http://localhost:8000 |
-| Swagger Docs | http://localhost:8000/docs |
+| Backend API | http://localhost:8001 |
+| Swagger Docs | http://localhost:8001/docs |
 
 ---
 
@@ -331,25 +332,28 @@ npm run dev                    # starts on port 5173
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/predict` | Predict quality/energy for given parameters |
-| POST | `/api/optimize/auto` | Run NSGA-II for a given scenario mode |
-| POST | `/api/optimize/target` | Run NSGA-II with hard constraints |
+| POST | `/api/optimize_auto` | Run NSGA-II for a given scenario mode |
+| POST | `/api/optimize_target` | Run NSGA-II with hard constraints |
 | GET | `/api/golden` | Get active golden signature |
-| POST | `/api/golden/accept` | Accept a proposed golden update |
-| GET | `/api/golden/archive` | Full golden update history |
-| POST | `/api/golden/clear` | Reset active golden session |
+| POST | `/api/accept_golden` | Accept a proposed golden update |
+| POST | `/api/reject_golden` | Log a golden proposal rejection |
+| GET | `/api/rejection_history` | Rejection audit trail |
+| GET | `/api/golden_archive` | Full golden update history |
+| GET | `/api/golden_history` | Golden update timeline |
+| POST | `/api/clear_session` | Reset active golden session |
 | GET | `/api/anomalies` | Anomaly detection results |
-| GET | `/api/asset-reliability` | Reliability states + root causes |
-| GET | `/api/dashboard/stats` | Aggregated KPIs for dashboard |
-| GET | `/api/production-trends` | Batch trend time-series |
-| GET | `/api/model/history` | Model version history |
-| GET | `/api/feature-importance` | SHAP feature importance |
+| GET | `/api/asset_reliability` | Reliability states + root causes |
+| GET | `/api/dashboard/stats` | Dataset-wide KPI averages + trends |
+| GET | `/api/production/trends` | Batch trend time-series |
+| GET | `/api/model_history` | Model version history |
+| GET | `/api/feature_importance` | SHAP feature importance |
 | POST | `/api/check_retrain` | Trigger drift check + optional retrain |
-| POST | `/api/rejections/log` | Log a golden proposal rejection |
-| GET | `/api/rejections` | Rejection history |
-| POST | `/api/data-files/upload` | Upload new dataset pair |
 | GET | `/api/batches` | All batch records |
-| POST | `/api/batches/{id}/analyze` | Correction report for a batch |
-| GET | `/api/system/status` | System health check |
+| GET | `/api/batch/{batch_id}/analyze` | Correction report for a specific batch |
+| GET | `/api/system_status` | Model + registry existence flags |
+| GET | `/api/data-files` | List current data files |
+| POST | `/api/data-files/upload` | Upload new dataset pair (auto-classified) |
+| GET | `/api/health` | Health check |
 
 ---
 
@@ -360,14 +364,16 @@ npm run dev                    # starts on port 5173
 | Backend language | Python 3.8+ |
 | API framework | FastAPI + uvicorn |
 | ML | scikit-learn (RandomForest, IsolationForest, KMeans), SHAP |
-| Data processing | pandas, numpy |
+| Data processing | pandas, numpy, scipy |
 | Model persistence | joblib |
 | Frontend framework | React 18 + TypeScript |
 | Build tool | Vite |
 | UI components | shadcn/ui + Radix UI + Tailwind CSS |
 | Animations | Framer Motion, GSAP |
-| State management | Zustand + React Query |
-| Charts | Recharts |
+| State management | Zustand + TanStack Query v5 |
+| Charts | Recharts, Plotly.js |
+| HTTP client | Axios |
+| Date utilities | date-fns |
 
 ---
 

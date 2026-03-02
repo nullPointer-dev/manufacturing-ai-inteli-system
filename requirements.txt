@@ -28,7 +28,7 @@ python-multipart>=0.0.6
 # ============================================================
 # UI & Visualization
 # ============================================================
-plotly>=5.17.0
+# Note: plotly is used client-side (plotly.js via npm) — not required in Python
 
 # ============================================================
 # Data I/O & File Formats
