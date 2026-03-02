@@ -1,6 +1,7 @@
 """
 FastAPI Backend Server for Manufacturing AI Frontend Integration
 """
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -38,10 +39,28 @@ from integration_api import (
 from golden_updater import _safe_load, HISTORY_FILE
 from industrial_validation import calculate_industrial_validation
 
+# =========================================================
+# Lifespan (replaces deprecated @app.on_event)
+# =========================================================
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("=" * 60)
+    print("Manufacturing AI Intelligence API - Server Starting")
+    print("=" * 60)
+    print(f"API Documentation: http://localhost:8001/docs")
+    print(f"Alternative docs: http://localhost:8001/redoc")
+    print(f"Frontend URL: http://localhost:5173")
+    print(f"API Base: http://localhost:8001/api")
+    print("=" * 60)
+    yield
+    # Shutdown (nothing to clean up)
+
 app = FastAPI(
     title="Manufacturing AI Intelligence API",
     description="Backend API for AI-driven batch optimization",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # CORS Configuration
@@ -584,20 +603,6 @@ async def upload_data_files(
         raise HTTPException(status_code=500, detail=str(e))
 
 # =========================================================
-# Startup Event
-# =========================================================
-
-@app.on_event("startup")
-async def startup_event():
-    print("=" * 60)
-    print("Manufacturing AI Intelligence API - Server Starting")
-    print("=" * 60)
-    print(f"API Documentation: http://localhost:8000/docs")
-    print(f"Alternative docs: http://localhost:8000/redoc")
-    print(f"Frontend URL: http://localhost:5173")
-    print(f"API Base: http://localhost:8000/api")
-    print("=" * 60)
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

@@ -95,12 +95,21 @@ def calculate_industrial_validation(
         golden_registry = _safe_load(REGISTRY_FILE, {})
         
         # Get the "balanced" golden signature (or first available)
+        # Registry structure: {mode: {cluster_id: {score, ranges, ...}}}
         golden_ranges = None
         if "balanced" in golden_registry:
-            golden_ranges = golden_registry["balanced"][0]["ranges"]
+            mode_data = golden_registry["balanced"]
+            # Pick the first cluster entry
+            first_cluster = next(iter(mode_data.values()), None)
+            if first_cluster and "ranges" in first_cluster:
+                golden_ranges = first_cluster["ranges"]
         elif len(golden_registry) > 0:
             first_mode = list(golden_registry.keys())[0]
-            golden_ranges = golden_registry[first_mode][0]["ranges"]
+            mode_data = golden_registry[first_mode]
+            if isinstance(mode_data, dict):
+                first_cluster = next(iter(mode_data.values()), None)
+                if first_cluster and "ranges" in first_cluster:
+                    golden_ranges = first_cluster["ranges"]
         
         # If golden signature exists, analyze corrections
         if golden_ranges is not None:

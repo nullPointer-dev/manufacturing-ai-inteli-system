@@ -180,7 +180,7 @@ def api_check_retrain():
 def api_system_status():
     return {
         "model_exists": (MODEL_DIR / "model.pkl").exists(),
-        "golden_session_exists": SESSION_FILE.exists(),
+        "golden_registry_exists": SESSION_FILE.exists(),
         "version_log_exists": VERSION_LOG.exists()
     }
 
@@ -284,8 +284,8 @@ def api_analyze_batch(batch_id: str):
     try:
         model = joblib.load(MODEL_DIR / "model.pkl")
         feature_cols = joblib.load(MODEL_DIR / "feature_columns.pkl")
-    except:
-        pass
+    except Exception as e:
+        print(f"[WARNING] Could not load model for batch analysis: {e}")
     
     # Analyze batch
     report_df = analyze_batch_against_golden(
@@ -336,91 +336,114 @@ def api_analyze_batch(batch_id: str):
 def api_get_dashboard_stats():
     """
     Get overall statistics from Excel data for the dashboard.
-    Returns averages and baselines from historical batch data.
-    
+    Returns dataset-wide averages across ALL batches as the headline numbers.
+    Trend shows how the most recent 20% of batches compare to the overall mean.
+
     Note: yield_score and performance_score are PCA-derived z-scores, not percentages.
     quality_score is a weighted combination of quality metrics.
     """
     from data_pipeline import build_pipeline
     import numpy as np
-    
+
     df = build_pipeline()
-    
-    # Calculate baseline (median of all batches)
-    baseline_quality = df["quality_score"].median()
-    baseline_energy = df["total_energy"].median()
-    
-    # For yield: use Content_Uniformity as a proxy
-    # It represents consistency of product (higher = better yield)
-    baseline_yield = df["Content_Uniformity"].median()
-    
-    # For performance: calculate throughput efficiency
-    # Performance = quality output per unit time (higher is better)
-    # Normalize to 0-100 scale for realistic display
-    df["performance_raw"] = (df["quality_score"] / df["total_process_time"])
+    n = len(df)
+
+    CO2_FACTOR = 0.82  # kg CO₂ per kWh
+
+    # ------------------------------------------------------------------
+    # Performance metric: normalise quality/time to 0-100 across ALL batches
+    # ------------------------------------------------------------------
+    df["performance_raw"] = df["quality_score"] / df["total_process_time"]
     perf_min = df["performance_raw"].min()
     perf_max = df["performance_raw"].max()
     if perf_max > perf_min:
         df["performance_metric"] = ((df["performance_raw"] - perf_min) / (perf_max - perf_min)) * 100
     else:
-        df["performance_metric"] = 50.0  # Default if no variation
-    baseline_performance = df["performance_metric"].median()
-    
-    # Calculate CO2 from energy
-    CO2_FACTOR = 0.82  # kg CO₂ per kWh
-    baseline_co2 = baseline_energy * CO2_FACTOR
-    
-    # Calculate latest batch metrics (last 5 batches average)
-    recent_df = df.tail(5)
-    current_quality = recent_df["quality_score"].mean()
-    current_yield = recent_df["Content_Uniformity"].mean()
-    current_performance = recent_df["performance_metric"].mean()
-    current_energy = recent_df["total_energy"].mean()
-    current_co2 = current_energy * CO2_FACTOR
-    
-    # Calculate trends (percent change vs baseline)
-    quality_trend = ((current_quality - baseline_quality) / baseline_quality) * 100 if baseline_quality != 0 else 0
-    yield_trend = ((current_yield - baseline_yield) / baseline_yield) * 100 if baseline_yield != 0 else 0
-    performance_trend = ((current_performance - baseline_performance) / baseline_performance) * 100 if baseline_performance != 0 else 0
-    energy_trend = ((current_energy - baseline_energy) / baseline_energy) * 100 if baseline_energy != 0 else 0
-    co2_trend = ((current_co2 - baseline_co2) / baseline_co2) * 100 if baseline_co2 != 0 else 0
-    
-    # Energy efficiency as a percentage (0-100)
-    # Lower energy consumption = higher efficiency
-    # Scale: efficiency = (1 - (current / max)) * 100, but use a normalized approach
+        df["performance_metric"] = 50.0
+
+    # ------------------------------------------------------------------
+    # HEADLINE METRICS — mean across every batch in the dataset
+    # ------------------------------------------------------------------
+    current_quality     = df["quality_score"].mean()
+    current_yield       = df["Content_Uniformity"].mean()
+    current_performance = df["performance_metric"].mean()
+    current_energy      = df["total_energy"].mean()
+    current_co2         = current_energy * CO2_FACTOR
+
+    # ------------------------------------------------------------------
+    # BASELINE — first 80% of batches (chronological anchor)
+    # ------------------------------------------------------------------
+    cutoff = max(1, int(n * 0.8))
+    baseline_df = df.iloc[:cutoff]
+
+    baseline_quality     = baseline_df["quality_score"].mean()
+    baseline_yield       = baseline_df["Content_Uniformity"].mean()
+    baseline_performance = baseline_df["performance_metric"].mean()
+    baseline_energy      = baseline_df["total_energy"].mean()
+    baseline_co2         = baseline_energy * CO2_FACTOR
+
+    # ------------------------------------------------------------------
+    # TREND — most recent 20% of batches vs the baseline above
+    # This answers: "is the dataset improving or declining recently?"
+    # ------------------------------------------------------------------
+    recent_df = df.iloc[cutoff:]
+    if len(recent_df) > 0:
+        recent_quality     = recent_df["quality_score"].mean()
+        recent_yield       = recent_df["Content_Uniformity"].mean()
+        recent_performance = recent_df["performance_metric"].mean()
+        recent_energy      = recent_df["total_energy"].mean()
+        recent_co2         = recent_energy * CO2_FACTOR
+    else:
+        recent_quality = current_quality
+        recent_yield = current_yield
+        recent_performance = current_performance
+        recent_energy = current_energy
+        recent_co2 = current_co2
+
+    def pct_change(recent, base):
+        return round(((recent - base) / base) * 100, 1) if base != 0 else 0.0
+
+    quality_trend     = pct_change(recent_quality,     baseline_quality)
+    yield_trend       = pct_change(recent_yield,       baseline_yield)
+    performance_trend = pct_change(recent_performance, baseline_performance)
+    energy_trend      = pct_change(recent_energy,      baseline_energy)
+    co2_trend         = pct_change(recent_co2,         baseline_co2)
+
+    # ------------------------------------------------------------------
+    # ENERGY EFFICIENCY: how close to the best-ever batch (0-100%)
+    # ------------------------------------------------------------------
     max_energy = df["total_energy"].max()
     min_energy = df["total_energy"].min()
     if max_energy > min_energy:
-        # Invert so lower energy = higher score
         energy_efficiency = ((max_energy - current_energy) / (max_energy - min_energy)) * 100
     else:
-        energy_efficiency = 50.0  # Default if no variation
-    energy_efficiency = max(0, min(100, energy_efficiency))
-    
+        energy_efficiency = 50.0
+    energy_efficiency = max(0.0, min(100.0, energy_efficiency))
+
     return {
         "current": {
-            "quality": round(current_quality, 2),
-            "yield": round(current_yield, 2),
-            "performance": round(current_performance, 2),
-            "energy": round(current_energy, 2),
-            "co2": round(current_co2, 2),
-            "energy_efficiency": round(energy_efficiency, 1)
+            "quality":           round(current_quality, 2),
+            "yield":             round(current_yield, 2),
+            "performance":       round(current_performance, 2),
+            "energy":            round(current_energy, 2),
+            "co2":               round(current_co2, 2),
+            "energy_efficiency": round(energy_efficiency, 1),
         },
         "trends": {
-            "quality": round(quality_trend, 1),
-            "yield": round(yield_trend, 1),
-            "performance": round(performance_trend, 1),
-            "energy": round(energy_trend, 1),
-            "co2": round(co2_trend, 1)
+            "quality":     quality_trend,
+            "yield":       yield_trend,
+            "performance": performance_trend,
+            "energy":      energy_trend,
+            "co2":         co2_trend,
         },
         "baseline": {
-            "quality": round(baseline_quality, 2),
-            "yield": round(baseline_yield, 2),
+            "quality":     round(baseline_quality, 2),
+            "yield":       round(baseline_yield, 2),
             "performance": round(baseline_performance, 2),
-            "energy": round(baseline_energy, 2),
-            "co2": round(baseline_co2, 2)
+            "energy":      round(baseline_energy, 2),
+            "co2":         round(baseline_co2, 2),
         },
-        "total_batches": len(df)
+        "total_batches": n,
     }
 
 
