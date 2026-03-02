@@ -73,6 +73,10 @@ AI-driven parameter optimization with human approval workflow.
 - 5 preset optimization scenarios: **Balanced**, **Eco** (energy-focused), **Quality**, **Yield**, **Performance**
 - **Custom** mode with per-objective weight sliders (Quality, Yield, Performance, Energy, CO₂ each 0–100%)
 
+**Strategy Selection**
+- **Automatic**: Let the optimizer learn the best process parameters freely
+- **Target-Based**: Constrain the optimizer to meet specific production goals
+
 **Target Constraints (optional)**
 - Minimum required CO₂ reduction %
 - Minimum quality, yield, and performance floor values
@@ -95,7 +99,7 @@ AI-driven parameter optimization with human approval workflow.
 - After optimization, the system proposes updating the golden signature for the active scenario
 - Shows current vs. proposed parameter ranges with % change indicators
 - One-click **Accept** or **Reject** — recorded in the audit trail
-- Rejection form captures reason (suboptimal, infeasible, too conservative, domain knowledge override)
+- Rejection modal with selectable reason: Score too low, Energy too high, Quality concern, Yield insufficient, Process risk, or Other
 
 ### 4. Golden Signature Management
 
@@ -117,7 +121,7 @@ Statistical anomaly detection with root-cause attribution.
 - Total anomalies detected, contamination rate %, low/medium/high risk breakdown
 
 **Anomaly Scatter Plot**
-- 2D scatter: Energy Consumption vs Quality Score, z-axis = anomaly score (bubble size)
+- 2D scatter: Content Uniformity (X-axis) vs Anomaly Score (Y-axis), bubble size = Quality score
 - Color: green (normal) vs red (anomalous)
 - Risk level legend (Low / Medium / High)
 
@@ -135,7 +139,8 @@ Statistical anomaly detection with root-cause attribution.
 
 Parameter-level correction recommendations for any specific batch.
 
-- **Batch selector**: Choose any batch ID from the dataset
+- **Batch selector**: Choose any batch ID from the dataset (with loading animation while batches populate)
+- **Batch summary cards**: After selecting a batch — Quality Score, Drift Analysis summary (Critical / Moderate / OK parameter counts), Energy (kWh), CO₂ (kg)
 - **Correction report table**: For every process parameter — current value vs golden mean, drift (in standard deviations), severity (OK / Moderate / Critical), whether the correction is beneficial, and the recommended adjustment
 - **Expected impact**: Model-simulated quality delta when correcting each parameter toward the golden mean
 - Parameters are ranked by severity so the most impactful corrections appear first
