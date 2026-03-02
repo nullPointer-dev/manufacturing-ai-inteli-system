@@ -237,7 +237,7 @@ export function IndustrialValidation() {
               <Button
                 onClick={handleCalculate}
                 disabled={calculateMutation.isPending}
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+                className="w-full bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600"
                 size="lg"
               >
                 {calculateMutation.isPending ? (

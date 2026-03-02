@@ -159,7 +159,7 @@ export function Sidebar() {
       className="w-64 border-r border-border bg-card/50 backdrop-blur-xl flex flex-col"
     >
       <div className="flex h-16 items-center gap-2 border-b border-border px-6">
-        <Activity className="h-8 w-8 text-violet-500 animate-pulse-glow" />
+        <Activity className="h-8 w-8 text-teal-500 animate-pulse-glow" />
         <div>
           <h1 className="text-lg font-bold">Manufacturing AI</h1>
           <p className="text-xs text-muted-foreground">Intelligence System</p>
@@ -218,9 +218,9 @@ export function Sidebar() {
                   className="flex items-start gap-2 p-2 rounded bg-background/50 hover:bg-background/80 transition-colors cursor-pointer group"
                   onClick={() => handleDownload(file.name)}
                 >
-                  <FileSpreadsheet className="h-4 w-4 text-violet-500 flex-shrink-0 mt-0.5" />
+                  <FileSpreadsheet className="h-4 w-4 text-teal-500 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-[10px] truncate group-hover:text-violet-500 transition-colors">
+                    <div className="font-medium text-[10px] truncate group-hover:text-teal-500 transition-colors">
                       {file.name}
                     </div>
                     <div className="text-[9px] text-muted-foreground">
@@ -309,7 +309,7 @@ export function Sidebar() {
                 key={idx}
                 className="flex items-center gap-2 p-3 rounded bg-background/50 border border-border/50"
               >
-                <FileSpreadsheet className="h-4 w-4 text-violet-500 flex-shrink-0" />
+                <FileSpreadsheet className="h-4 w-4 text-teal-500 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium truncate">{item.filename}</p>
                   <p className="text-xs text-muted-foreground">

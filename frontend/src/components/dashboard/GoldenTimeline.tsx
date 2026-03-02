@@ -53,11 +53,11 @@ export function GoldenTimeline({ entries }: TimelineProps) {
                   </div>
                   <div>
                     <span className="text-muted-foreground">Energy:</span>{' '}
-                    <span className="text-violet-500">{entry.metrics.energy.toFixed(1)} kWh</span>
+                    <span className="text-teal-500">{entry.metrics.energy.toFixed(1)} kWh</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Quality:</span>{' '}
-                    <span className="text-neon-purple">{entry.metrics.quality.toFixed(2)}</span>
+                    <span className="text-neon-teal">{entry.metrics.quality.toFixed(2)}</span>
                   </div>
                 </div>
               </div>

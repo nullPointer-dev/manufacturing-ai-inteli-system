@@ -131,22 +131,22 @@ export function GoldenSignature() {
           </CardContent>
         </Card>
 
-        <Card className="glass-panel border-violet-500/30">
+        <Card className="glass-panel border-teal-500/30">
           <CardContent className="p-6">
             <div>
               <p className="text-sm text-muted-foreground">Active Modes</p>
-              <p className="text-3xl font-bold text-violet-500">
+              <p className="text-3xl font-bold text-teal-500">
                 {Object.keys(registry).length}
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="glass-panel border-neon-purple/30">
+        <Card className="glass-panel border-neon-teal/30">
           <CardContent className="p-6">
             <div>
               <p className="text-sm text-muted-foreground">Recent Updates</p>
-              <p className="text-3xl font-bold text-neon-purple">
+              <p className="text-3xl font-bold text-neon-teal">
                 {history.filter((h) => {
                   const date = new Date(h.time)
                   const now = new Date()
@@ -252,7 +252,7 @@ export function GoldenSignature() {
                             className={`text-xs px-2 py-0.5 rounded ${
                               entry.type === 'IMPROVED'
                                 ? 'bg-neon-green/20 text-neon-green'
-                                : 'bg-violet-500/20 text-violet-500'
+                                : 'bg-teal-500/20 text-teal-500'
                             }`}
                           >
                             {entry.type.toLowerCase()}
@@ -358,7 +358,7 @@ export function GoldenSignature() {
                 {archive.archived_sessions.slice().reverse().map((session: any, idx: number) => (
                   <div key={idx} className="border border-border rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-4">
-                      <Archive className="h-5 w-5 text-neon-purple" />
+                      <Archive className="h-5 w-5 text-neon-teal" />
                       <h3 className="font-semibold">Session {archive.archived_sessions.length - idx}</h3>
                       <span className="text-sm text-muted-foreground">
                         {format(new Date(session.timestamp), 'MMM dd, yyyy HH:mm')}

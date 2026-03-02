@@ -27,29 +27,29 @@ export function Layout({ children }: LayoutProps) {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="flex flex-col items-center gap-6 p-12 rounded-xl bg-card/90 border border-violet-500/30 shadow-2xl"
+              className="flex flex-col items-center gap-6 p-12 rounded-xl bg-card/90 border border-teal-500/30 shadow-2xl"
             >
               <div className="relative">
-                <Loader2 className="h-16 w-16 text-violet-500 animate-spin" />
-                <div className="absolute inset-0 h-16 w-16 bg-violet-500/20 rounded-full animate-pulse" />
+                <Loader2 className="h-16 w-16 text-teal-500 animate-spin" />
+                <div className="absolute inset-0 h-16 w-16 bg-teal-500/20 rounded-full animate-pulse" />
               </div>
               <div className="text-center space-y-2">
-                <h2 className="text-2xl font-bold text-violet-500">Processing Data</h2>
+                <h2 className="text-2xl font-bold text-teal-500">Processing Data</h2>
                 <p className="text-muted-foreground">{processingMessage}</p>
               </div>
               <div className="flex gap-1">
                 <motion.div
-                  className="w-2 h-2 bg-violet-500 rounded-full"
+                  className="w-2 h-2 bg-teal-500 rounded-full"
                   animate={{ scale: [1, 1.5, 1] }}
                   transition={{ duration: 1, repeat: Infinity, delay: 0 }}
                 />
                 <motion.div
-                  className="w-2 h-2 bg-violet-500 rounded-full"
+                  className="w-2 h-2 bg-teal-500 rounded-full"
                   animate={{ scale: [1, 1.5, 1] }}
                   transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
                 />
                 <motion.div
-                  className="w-2 h-2 bg-violet-500 rounded-full"
+                  className="w-2 h-2 bg-teal-500 rounded-full"
                   animate={{ scale: [1, 1.5, 1] }}
                   transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
                 />

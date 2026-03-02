@@ -46,7 +46,7 @@ export function Dialog({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ type: 'spring', duration: 0.3 }}
-              className="glass-panel border-neon-purple/30 rounded-lg shadow-2xl w-full max-w-md mx-4 pointer-events-auto"
+              className="glass-panel border-neon-teal/30 rounded-lg shadow-2xl w-full max-w-md mx-4 pointer-events-auto"
             >
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-border/50">

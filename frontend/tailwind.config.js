@@ -46,7 +46,7 @@ export default {
   				green: '#00ff88',
   				yellow: '#ffed00',
   				red: '#ff0055',
-  				purple: '#b000ff'
+  				teal: '#00c9b1'
   			},
   			chart: {
   				'1': 'hsl(var(--chart-1))',

@@ -63,11 +63,11 @@ export function Anomaly() {
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="glass-panel border-violet-500/30">
+        <Card className="glass-panel border-teal-500/30">
           <CardContent className="p-6">
             <div>
               <p className="text-sm text-muted-foreground">Total Batches</p>
-              <p className="text-3xl font-bold text-violet-500">
+              <p className="text-3xl font-bold text-teal-500">
                 {isLoading ? '...' : anomalies?.total_batches || 0}
               </p>
             </div>
@@ -102,7 +102,7 @@ export function Anomaly() {
           </CardContent>
         </Card>
 
-        <Card className="glass-panel border-neon-purple/30">
+        <Card className="glass-panel border-neon-teal/30">
           <CardContent className="p-6">
             <div className="flex flex-col gap-2">
               <p className="text-sm text-muted-foreground flex items-center gap-2">
@@ -291,7 +291,7 @@ export function Anomaly() {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload
                         return (
-                          <div className="glass-panel border-neon-purple/30 px-3 py-2 rounded">
+                          <div className="glass-panel border-neon-teal/30 px-3 py-2 rounded">
                             <div className="font-bold mb-1 tracking-wide">{data.batch_id}</div>
                             <div className="space-y-1 text-sm">
                               <div className="flex justify-between gap-4">
@@ -385,7 +385,7 @@ export function Anomaly() {
                   { key: 'stable',               label: 'Stable',              color: 'text-green-400 border-green-500/30 bg-green-500/5' },
                   { key: 'efficiency_loss',       label: 'Efficiency Loss',     color: 'text-yellow-400 border-yellow-500/30 bg-yellow-500/5' },
                   { key: 'process_instability',   label: 'Process Instability', color: 'text-orange-400 border-orange-500/30 bg-orange-500/5' },
-                  { key: 'calibration_gain',      label: 'Calibration Gain',   color: 'text-violet-500 border-violet-500/30 bg-violet-500/5' },
+                  { key: 'calibration_gain',      label: 'Calibration Gain',   color: 'text-teal-500 border-teal-500/30 bg-teal-500/5' },
                 ].map(({ key, label, color }) => (
                   <div key={key} className={`rounded-lg border p-4 text-center ${color}`}>
                     <p className="text-2xl font-bold">{assetReliability.summary[key as keyof typeof assetReliability.summary]}</p>
@@ -437,7 +437,7 @@ export function Anomaly() {
                               <span className={`text-xs px-2 py-0.5 rounded font-medium ${
                                 batch.reliability_state === 'Efficiency Loss' ? 'bg-yellow-500/20 text-yellow-400' :
                                 batch.reliability_state === 'Process Instability' ? 'bg-orange-500/20 text-orange-400' :
-                                'bg-violet-500/20 text-violet-500'
+                                'bg-teal-500/20 text-teal-500'
                               }`}>
                                 {batch.reliability_state}
                               </span>
@@ -449,7 +449,7 @@ export function Anomaly() {
                                 <span className="text-xs">{batch.maintenance_action}</span>
                               </div>
                             </TableCell>
-                            <TableCell className={`text-right font-mono text-sm ${batch.energy_drift > 0.05 ? 'text-yellow-400' : batch.energy_drift < -0.05 ? 'text-violet-500' : 'text-muted-foreground'}`}>
+                            <TableCell className={`text-right font-mono text-sm ${batch.energy_drift > 0.05 ? 'text-yellow-400' : batch.energy_drift < -0.05 ? 'text-teal-500' : 'text-muted-foreground'}`}>
                               {batch.energy_drift > 0 ? '+' : ''}{formatNumber(batch.energy_drift * 100, 1)}%
                             </TableCell>
                             <TableCell className={`text-right font-mono text-sm ${batch.instability_score > 0.5 ? 'text-orange-400' : 'text-muted-foreground'}`}>
