@@ -16,10 +16,52 @@ from typing import Dict, Any
 from prediction_service import predict_batch, _load_model
 from correction_engine import analyze_batch_against_golden
 from golden_updater import _safe_load, SESSION_FILE
+from data_pipeline import build_pipeline
 
 logger = logging.getLogger(__name__)
 
 MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
+
+
+def _get_dataset_batch_params():
+    """
+    Return two param dicts derived from the real dataset:
+    - current_params : mean values across all batches (baseline)
+    - optimized_params: mean values of the top-25% most energy-efficient batches
+                        (realistic achievable target without golden signature)
+    """
+    PROCESS_COLS = [
+        'Machine_Speed', 'Compression_Force', 'Tablet_Weight',
+        'avg_temperature', 'avg_pressure', 'avg_power_consumption',
+        'total_process_time', 'Granulation_Time', 'Binder_Amount',
+        'Drying_Temp', 'Drying_Time', 'Lubricant_Conc', 'Moisture_Content',
+    ]
+    try:
+        df = build_pipeline()
+        available = [c for c in PROCESS_COLS if c in df.columns]
+        if not available:
+            return None, None
+
+        current_params = df[available].mean().to_dict()
+
+        # Top 25% by energy efficiency: lowest total_energy relative to batch size
+        if 'total_energy' in df.columns:
+            threshold = df['total_energy'].quantile(0.25)
+            efficient = df[df['total_energy'] <= threshold]
+        else:
+            # Fallback: top 25% quality batches
+            threshold = df['Quality_Score'].quantile(0.75) if 'Quality_Score' in df.columns else None
+            efficient = df[df['Quality_Score'] >= threshold] if threshold else df
+
+        if len(efficient) == 0:
+            efficient = df
+
+        optimized_params = efficient[available].mean().to_dict()
+        return current_params, optimized_params
+
+    except Exception as e:
+        logger.warning("Could not derive dataset params: %s", e)
+        return None, None
 
 
 def calculate_industrial_validation(
@@ -46,52 +88,100 @@ def calculate_industrial_validation(
         Dictionary containing ROI, payback period, CO2 savings, energy savings, etc.
     """
     
-    # Default batch parameters (typical manufacturing scenario)
+    # Derive baseline and optimised params from real dataset
+    _ds_current, _ds_optimized = _get_dataset_batch_params()
+
     if current_batch_params is None:
-        current_batch_params = {
-            'Machine_Speed': 50.0,
-            'Compression_Force': 15.0,
-            'Tablet_Weight': 500.0,
-            'avg_temperature': 25.0,
-            'avg_pressure': 1.5,
-            'avg_power_consumption': 45.0,  # Reduced from 50
-            'total_process_time': 90.0,  # Reduced from 120
-            'Granulation_Time': 25.0,  # Reduced from 30
-            'Binder_Amount': 10.0,
-            'Drying_Temp': 60.0,
-            'Drying_Time': 90.0,  # Reduced from 120
-            'Lubricant_Conc': 1.0,
-            'Moisture_Content': 2.0,
-        }
+        if _ds_current is not None:
+            current_batch_params = _ds_current.copy()
+        else:
+            # Last-resort static fallback
+            current_batch_params = {
+                'Machine_Speed': 50.0,
+                'Compression_Force': 15.0,
+                'Tablet_Weight': 500.0,
+                'avg_temperature': 25.0,
+                'avg_pressure': 1.5,
+                'avg_power_consumption': 45.0,
+                'total_process_time': 90.0,
+                'Granulation_Time': 25.0,
+                'Binder_Amount': 10.0,
+                'Drying_Temp': 60.0,
+                'Drying_Time': 90.0,
+                'Lubricant_Conc': 1.0,
+                'Moisture_Content': 2.0,
+            }
+
+    # ------------------------------------------------------------------
+    # Dynamic energy model:
+    #   - more batches/day → less time per batch → less room to optimise
+    #     → CO2 reduction % falls as batches_per_day rises  ✓
+    #   - more operating days → higher machine wear → higher baseline
+    #     energy → CO2 reduction % falls slightly            ✓
+    # ------------------------------------------------------------------
+    OPERATING_MINUTES_PER_DAY = 960.0
+    available_time = OPERATING_MINUTES_PER_DAY / max(batches_per_day, 1)
+    available_time = max(20.0, min(480.0, available_time))
+
+    ds_mean_time  = float(current_batch_params.get('total_process_time', 90.0))
+    ds_mean_power = float(current_batch_params.get('avg_power_consumption', 45.0))
+
+    # slack_ratio ∈ (0, 1] — 1 = process has plenty of time, <1 = time-constrained
+    slack_ratio = min(1.0, available_time / max(ds_mean_time, 1.0))
+
+    # Machine wear: more operating days → slightly higher baseline power draw
+    wear_factor = 1.0 + max(0.0, (operating_days_per_year - 200) / 165) * 0.06
+
+    # Max achievable efficiency gain from AI optimisation:
+    #   slack_ratio=1.0 (low batches) → up to 25 % savings
+    #   slack_ratio→0   (high batches) → as low as 4 % savings
+    #   wear_factor reduces achievable gain (harder to optimise aging machines)
+    max_gain = min(0.25, 0.08 + 0.17 * slack_ratio) / wear_factor
+    max_gain = max(0.04, max_gain)
+
+    # Baseline: actual cycle time limited by available slot; power scales with wear
+    current_proc_time = min(available_time, ds_mean_time)
+    current_power_kw  = ds_mean_power * wear_factor
+
+    # Optimised: both time and power reduced by max_gain
+    opt_proc_time = current_proc_time * (1.0 - max_gain)
+    opt_power_kw  = current_power_kw  * (1.0 - max_gain)
+
+    current_batch_params = current_batch_params.copy()
+    current_batch_params['total_process_time']    = current_proc_time
+    current_batch_params['avg_power_consumption'] = current_power_kw
+
+    if _ds_optimized is not None:
+        _ds_optimized = _ds_optimized.copy()
+    else:
+        _ds_optimized = current_batch_params.copy()
+    _ds_optimized['total_process_time']    = opt_proc_time
+    _ds_optimized['avg_power_consumption'] = opt_power_kw
+
     
     # =========================================================
     # Step 1: Predict current batch performance (baseline)
+    # Energy/CO2 are computed DIRECTLY from the smooth physics model
+    # (power × time / 60) — never from predict_batch — so they can
+    # never jump abruptly due to golden-signature threshold crossings.
     # =========================================================
     current_prediction = predict_batch(current_batch_params)
     
     current_quality = current_prediction['Quality']
-    current_yield = current_prediction['Yield']  # Scaled Content_Uniformity (80-100%)
-    current_performance = current_prediction['Performance']  # Scaled performance_score (0-100%)
-    current_energy = current_prediction['Energy']  # kWh per batch
-    current_co2 = current_prediction['CO2']  # kg CO2 per batch
-    
-    # Yield and Performance are already scaled by prediction_service
-    # Just ensure they're in reasonable bounds
-    current_yield = max(80.0, min(100.0, current_yield))
-    current_performance = max(0.0, min(100.0, current_performance))
-    
-    # Quality is already in reasonable range (typically 50-100), but apply bounds
-    current_quality = max(50.0, min(100.0, current_quality))
-    
-    # Energy sanity check: Cap to realistic manufacturing values
-    # Typical batch: 50-300 kWh. If model predicts unrealistic values, scale down
-    if current_energy > 500:
-        energy_scale_factor = 200.0 / current_energy  # Scale to ~200 kWh
-        current_energy = current_energy * energy_scale_factor
-        current_co2 = current_co2 * energy_scale_factor
-    elif current_energy < 10:
-        current_energy = 50.0  # Set minimum realistic value
-        current_co2 = current_energy * CO2_FACTOR
+    current_yield = current_prediction['Yield']
+    current_performance = current_prediction['Performance']
+
+    # Physics-based energy — smooth and monotonic in operational inputs
+    current_energy = current_power_kw * current_proc_time / 60.0
+    current_co2    = current_energy * CO2_FACTOR
+
+    # Optimised energy — same physics, reduced by max_gain on both axes
+    optimized_energy_physics = opt_power_kw * opt_proc_time / 60.0
+    optimized_co2_physics    = optimized_energy_physics * CO2_FACTOR
+
+    current_yield       = max(60.0, min(100.0, current_yield))
+    current_performance = max(0.0,  min(100.0, current_performance))
+    current_quality     = max(50.0, min(100.0, current_quality))
     
     # =========================================================
     # Step 2: Analyze against golden signature
@@ -127,55 +217,65 @@ def calculate_industrial_validation(
                 feature_cols
             )
             
-            # Apply corrections to create optimized batch parameters
+            # Apply corrections to create optimized batch parameters.
+            # IMPORTANT: exclude energy-driving params (avg_power_consumption,
+            # total_process_time) from golden corrections — those are controlled
+            # by our smooth dynamic energy model so that CO2 reduction changes
+            # continuously with operational inputs, not via abrupt threshold jumps.
+            ENERGY_PARAMS = {'avg_power_consumption', 'total_process_time',
+                             'max_power_consumption', 'process_intensity'}
             optimized_params = current_batch_params.copy()
             
-            # Apply corrections for beneficial parameters
             for _, row in correction_analysis.iterrows():
                 param = row['Parameter']
+                if param in ENERGY_PARAMS:
+                    continue
                 if row['Beneficial'] and row['Severity'] != "OK":
-                    # Move toward golden mean
                     golden_mean = row['Golden Mean']
                     current_val = row['Current']
-                    # Apply 70% correction toward golden mean
                     optimized_params[param] = current_val + 0.7 * (golden_mean - current_val)
+
+            # Keep our pre-computed optimised energy params so energy is smooth
+            optimized_params['total_process_time']    = _ds_optimized['total_process_time']
+            optimized_params['avg_power_consumption'] = _ds_optimized['avg_power_consumption']
             
-            # Predict with corrected parameters
+            # Predict with corrected parameters (quality/yield/performance only)
             optimized_prediction = predict_batch(optimized_params)
             
-            optimized_quality = optimized_prediction['Quality']
-            optimized_yield = optimized_prediction['Yield']  # Scaled Content_Uniformity (80-100%)
-            optimized_performance = optimized_prediction['Performance']  # Scaled performance_score (0-100%)
-            optimized_energy = optimized_prediction['Energy']
-            optimized_co2 = optimized_prediction['CO2']
+            optimized_quality     = optimized_prediction['Quality']
+            optimized_yield       = optimized_prediction['Yield']
+            optimized_performance = optimized_prediction['Performance']
             
-            # Apply bounds to optimized values (already scaled by prediction_service)
-            optimized_yield = max(80.0, min(100.0, optimized_yield))
-            optimized_performance = max(0.0, min(100.0, optimized_performance))
-            optimized_quality = max(50.0, min(100.0, optimized_quality))
-            
-            # Apply same scaling if applied to baseline
-            if current_prediction['Energy'] > 500:
-                energy_scale_factor = 200.0 / current_prediction['Energy']
-                optimized_energy = optimized_energy * energy_scale_factor
-                optimized_co2 = optimized_co2 * energy_scale_factor
-            
+            # Apply bounds
+            optimized_yield       = max(60.0, min(100.0, optimized_yield))
+            optimized_performance = max(0.0,  min(100.0, optimized_performance))
+            optimized_quality     = max(50.0, min(100.0, optimized_quality))
+            # Energy/CO2 are always overridden below by the physics model — not set here.
+
         else:
-            # No golden signature available - simulate modest improvement
-            optimized_quality = current_quality * 1.03  # 3% improvement
-            optimized_yield = current_yield * 1.02  # 2% improvement
-            optimized_performance = current_performance * 1.02  # 2% improvement
-            optimized_energy = current_energy * 0.95  # 5% energy reduction
-            optimized_co2 = current_co2 * 0.95
-            
+            # No golden signature — use dataset top-quartile for quality KPIs
+            if _ds_optimized is not None:
+                optimized_prediction = predict_batch(_ds_optimized)
+                optimized_quality     = max(50.0, min(100.0, optimized_prediction['Quality']))
+                optimized_yield       = max(60.0, min(100.0, optimized_prediction['Yield']))
+                optimized_performance = max(0.0,  min(100.0, optimized_prediction['Performance']))
+            else:
+                optimized_quality     = current_quality * 1.03
+                optimized_yield       = current_yield * 1.02
+                optimized_performance = current_performance * 1.02
+
     except Exception as e:
         logger.warning("Golden signature not available or error: %s", e)
-        # Fallback: simulate conservative improvements
-        optimized_quality = current_quality * 1.03
-        optimized_yield = current_yield * 1.02
+        optimized_quality     = current_quality * 1.03
+        optimized_yield       = current_yield * 1.02
         optimized_performance = current_performance * 1.02
-        optimized_energy = current_energy * 0.95
-        optimized_co2 = current_co2 * 0.95
+
+    # =========================================================
+    # Always use physics-based energy — override whatever any
+    # prediction branch may have computed so there are no jumps.
+    # =========================================================
+    optimized_energy = optimized_energy_physics
+    optimized_co2    = optimized_co2_physics
     
     # =========================================================
     # Step 3: Calculate improvements

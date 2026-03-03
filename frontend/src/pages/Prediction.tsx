@@ -178,10 +178,22 @@ export function Prediction() {
               <Card className="glass-panel bg-primary/10 border-primary">
                 <CardContent className="p-4">
                   <p className="text-sm">
-                    <span className="font-semibold">AI Insight:</span> This batch configuration shows{' '}
-                    {prediction.Quality > 80 ? 'excellent' : prediction.Quality > 60 ? 'good' : 'moderate'}{' '}
-                    quality potential with{' '}
-                    {prediction.Energy < 250 ? 'optimal' : 'elevated'} energy consumption.
+                    <span className="font-semibold">AI Insight:</span>{' '}
+                    {(() => {
+                      const q = prediction.Quality
+                      const e = prediction.Energy
+                      const qualityLabel = q > 85 ? 'excellent' : q > 70 ? 'good' : q > 55 ? 'moderate' : 'poor'
+                      const energyLabel = e < 80 ? 'very low' : e < 150 ? 'low' : e < 250 ? 'moderate' : e < 400 ? 'high' : 'very high'
+                      const energyTip =
+                        e >= 400
+                          ? ' Consider reducing process time or power consumption to cut costs and emissions.'
+                          : e >= 250
+                          ? ' Review process duration or power draw — energy usage is above recommended levels.'
+                          : e >= 150
+                          ? ' Energy usage is within acceptable range but can be optimised.'
+                          : ' Energy consumption is efficient for this batch size.'
+                      return `This batch shows ${qualityLabel} quality (${q.toFixed(1)}) with ${energyLabel} energy consumption (${e.toFixed(1)} kWh).${energyTip}`
+                    })()}
                   </p>
                 </CardContent>
               </Card>

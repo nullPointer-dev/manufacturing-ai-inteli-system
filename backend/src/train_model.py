@@ -120,17 +120,6 @@ def train_and_save_model(data_folder=None):
     with open(METRICS_FILE, "w") as f:
         json.dump(metrics, f, indent=2)
 
-    # Save aggregate metrics separately so the governance backfill
-    # can always find mae, rmse, r2, mape without re-computing them.
-    aggregate = {
-        "mae": float(mae),
-        "rmse": float(rmse),
-        "r2": r2,
-        "mape": mape,
-    }
-    with open(AGGREGATE_METRICS_FILE, "w") as f:
-        json.dump(aggregate, f, indent=2)
-
     # -----------------------------------------------------
     # AGGREGATE METRICS (FOR GOVERNANCE)
     # -----------------------------------------------------
@@ -142,6 +131,17 @@ def train_and_save_model(data_folder=None):
         np.mean(np.abs((y_test.iloc[:, i].values - preds[:, i]) / (np.abs(y_test.iloc[:, i].values) + 1e-6)))
         for i in range(preds.shape[1])
     ]))
+
+    # Save aggregate metrics separately so the governance backfill
+    # can always find mae, rmse, r2, mape without re-computing them.
+    aggregate = {
+        "mae": float(mae),
+        "rmse": float(rmse),
+        "r2": r2,
+        "mape": mape,
+    }
+    with open(AGGREGATE_METRICS_FILE, "w") as f:
+        json.dump(aggregate, f, indent=2)
 
     # -----------------------------------------------------
     # SAVE DRIFT BASELINE (used by drift detection on next run)
@@ -164,14 +164,19 @@ def train_and_save_model(data_folder=None):
     cu_max = float(df["Content_Uniformity"].max())
     ps_min = float(df["performance_score"].min())
     ps_max = float(df["performance_score"].max())
+    ys_min = float(df["yield_score"].min())
+    ys_max = float(df["yield_score"].max())
 
     scaling_params = {
         "content_uniformity_min": cu_min,
         "content_uniformity_max": cu_max,
         "performance_score_min": ps_min,
         "performance_score_max": ps_max,
+        "yield_score_min": ys_min,
+        "yield_score_max": ys_max,
         # derived helpers used directly in rescaling formulas
         "yield_scale_range": cu_max - cu_min if cu_max != cu_min else 1.0,
+        "yield_score_range": ys_max - ys_min if ys_max != ys_min else 1.0,
         "perf_scale_range": ps_max - ps_min if ps_max != ps_min else 1.0,
     }
     with open(SCALING_PARAMS_FILE, "w") as f:

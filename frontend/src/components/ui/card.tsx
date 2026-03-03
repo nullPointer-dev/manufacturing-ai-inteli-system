@@ -33,7 +33,6 @@ const useMagicEffects = (
     if (!el || !isMagic) return
 
     el.style.position = 'relative'
-    el.style.overflow = 'hidden'
     el.style.setProperty('--glow-x', '50%')
     el.style.setProperty('--glow-y', '50%')
     el.style.setProperty('--glow-intensity', '0')

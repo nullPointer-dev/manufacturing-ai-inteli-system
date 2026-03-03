@@ -55,6 +55,9 @@ def _load_scaling_params() -> dict:
                 "content_uniformity_min": 89.8,
                 "content_uniformity_max": 106.3,
                 "yield_scale_range": 16.5,
+                "yield_score_min": -2.0,
+                "yield_score_max": 2.0,
+                "yield_score_range": 4.0,
                 "performance_score_min": -1.82,
                 "performance_score_max": 1.68,
                 "perf_scale_range": 3.5,
@@ -141,16 +144,22 @@ def predict_batch(input_params: dict):
     uniformity = float(preds[2])
     yield_val = float(preds[3])
     perf_val = float(preds[4])
-    energy = float(preds[5])
+    # Energy: compute physically from user inputs for accuracy.
+    # The model's total_energy prediction (preds[5]) is trained on full
+    # multi-phase sensor sums and over-predicts for single-input scenarios.
+    avg_power = float(input_params.get("avg_power_consumption", 50.0))
+    proc_time = float(input_params.get("total_process_time", 120.0))
+    energy = avg_power * proc_time / 60.0  # kWh = kW × hours
 
-    # Scale Content_Uniformity from actual range to 80-100%
     sp = _load_scaling_params()
-    cu_min = sp["content_uniformity_min"]
-    cu_range = sp["yield_scale_range"]
-    yield_scaled = 80.0 + (uniformity - cu_min) * (20.0 / cu_range)
-    yield_scaled = max(80.0, min(100.0, yield_scaled))  # Clamp to 80-100%
 
-    # Scale performance_score from PCA range to percentage (0-100%)
+    # Scale yield_score (PCA of Hardness/CU/Friability) to 60-100%
+    ys_min = sp.get("yield_score_min", -2.0)
+    ys_range = sp.get("yield_score_range", 4.0)
+    yield_scaled = 60.0 + (yield_val - ys_min) * (40.0 / ys_range)
+    yield_scaled = max(60.0, min(100.0, yield_scaled))  # Clamp to 60-100%
+
+    # Scale performance_score (PCA of process time/power) to 0-100%
     ps_min = sp["performance_score_min"]
     ps_range = sp["perf_scale_range"]
     perf_scaled = ((perf_val - ps_min) / ps_range) * 100
@@ -172,8 +181,8 @@ def predict_batch(input_params: dict):
 
         # system KPIs
         "Quality": quality,
-        "Yield": yield_scaled,  # Scaled Content_Uniformity (89.8-106.3% → 80-100%)
-        "Performance": perf_scaled,  # Scaled performance_score (-1.82 to +1.68 → 0-100%)
+        "Yield": yield_scaled,  # Scaled yield_score PCA (Hardness/CU/Friability → 60-100%)
+        "Performance": perf_scaled,  # Scaled performance_score PCA (time/power → 0-100%)
         "Energy": energy,
         "CO2": co2
     }

@@ -106,7 +106,7 @@ export function AnimatedDropdown({
             </div>
 
             {/* Options List */}
-            <div className="max-h-[400px] min-h-[100px] overflow-y-auto custom-scrollbar">
+            <div className="max-h-[400px] min-h-[100px] overflow-y-auto custom-scrollbar pb-2">
               {loading ? (
                 <div className="p-3 space-y-1">
                   {[...Array(5)].map((_, i) => (

@@ -1,16 +1,16 @@
 [
   {
-    "time": null,
+    "time": "2026-03-03T17:09:40.599285",
     "reason": {
       "initial_training": true
     },
     "metrics": {
-      "mae": 40.818736,
-      "rmse": null,
-      "r2": 0.977018,
-      "mape": null
+      "mae": 40.81873626017536,
+      "rmse": 133.30082662221764,
+      "r2": 0.9770177236547802,
+      "mape": 2.541060563531007
     },
-    "dataset_size": null,
+    "dataset_size": 60,
     "model_version": 1
   }
 ]
