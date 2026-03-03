@@ -4,24 +4,29 @@ Calculates ROI, Payback Period, CO2 savings, and Energy efficiency
 based on real-time prediction engine and correction recommendations.
 """
 
+import logging
 import pandas as pd
 import numpy as np
 from pathlib import Path
+
+from constants import CO2_FACTOR
 import joblib
 from typing import Dict, Any
 
 from prediction_service import predict_batch, _load_model
 from correction_engine import analyze_batch_against_golden
-from golden_updater import _safe_load, REGISTRY_FILE
+from golden_updater import _safe_load, SESSION_FILE
+
+logger = logging.getLogger(__name__)
 
 MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
 
 
 def calculate_industrial_validation(
-    electricity_cost: float,  # ₹ per kWh
+    electricity_cost: float,  # cost per kWh (currency matches frontend)
     batches_per_day: float,
-    deployment_cost: float,  # ₹ one-time
-    annual_maintenance_cost: float,  # ₹ per year
+    deployment_cost: float,  # one-time cost
+    annual_maintenance_cost: float,  # per year
     current_batch_params: Dict[str, Any] = None,
     operating_days_per_year: int = 250,
 ) -> Dict[str, Any]:
@@ -86,13 +91,14 @@ def calculate_industrial_validation(
         current_co2 = current_co2 * energy_scale_factor
     elif current_energy < 10:
         current_energy = 50.0  # Set minimum realistic value
-        current_co2 = current_energy * 0.82
+        current_co2 = current_energy * CO2_FACTOR
     
     # =========================================================
     # Step 2: Analyze against golden signature
     # =========================================================
     try:
-        golden_registry = _safe_load(REGISTRY_FILE, {})
+        # SESSION_FILE is the single source of truth written by check_and_update_golden
+        golden_registry = _safe_load(SESSION_FILE, {})
         
         # Get the "balanced" golden signature (or first available)
         # Registry structure: {mode: {cluster_id: {score, ranges, ...}}}
@@ -163,7 +169,7 @@ def calculate_industrial_validation(
             optimized_co2 = current_co2 * 0.95
             
     except Exception as e:
-        print(f"Golden signature not available or error: {e}")
+        logger.warning("Golden signature not available or error: %s", e)
         # Fallback: simulate conservative improvements
         optimized_quality = current_quality * 1.03
         optimized_yield = current_yield * 1.02

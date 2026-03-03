@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 
+from constants import CO2_FACTOR
 from data_pipeline import build_pipeline
 from context_engine import assign_context_clusters
 from golden_signature import identify_golden_signatures, scenario_weights
@@ -51,7 +52,7 @@ def clamp_energy(pop_df, hist_df):
     upper = hist_energy * 1.30
 
     pop_df["Energy"] = pop_df["Energy"].clip(lower, upper)
-    pop_df["CO2"] = pop_df["Energy"] * 0.82
+    pop_df["CO2"] = pop_df["Energy"] * CO2_FACTOR
 
     return pop_df
 

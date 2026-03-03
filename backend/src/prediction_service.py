@@ -1,21 +1,67 @@
+import logging
 import joblib
+import json
 import pandas as pd
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
 MODEL_FILE = MODEL_DIR / "model.pkl"
 FEATURE_FILE = MODEL_DIR / "feature_columns.pkl"
+SCALING_PARAMS_FILE = MODEL_DIR / "scaling_params.json"
 
-CO2_FACTOR = 0.82
+from constants import CO2_FACTOR
+
+# =========================================================
+# MODULE-LEVEL MODEL CACHE (invalidated by file mtime)
+# =========================================================
+_model_cache: dict = {"model": None, "feature_cols": None, "mtime": None}
+_scaling_cache: dict = {"params": None, "mtime": None}
 
 
 # =========================================================
-# LOAD MODEL + FEATURES
+# LOAD MODEL + FEATURES (cached)
 # =========================================================
 def _load_model():
-    model = joblib.load(MODEL_FILE)
-    feature_cols = joblib.load(FEATURE_FILE)
-    return model, feature_cols
+    try:
+        mtime = MODEL_FILE.stat().st_mtime
+    except OSError:
+        mtime = None
+
+    if _model_cache["model"] is None or _model_cache["mtime"] != mtime:
+        _model_cache["model"] = joblib.load(MODEL_FILE)
+        _model_cache["feature_cols"] = joblib.load(FEATURE_FILE)
+        _model_cache["mtime"] = mtime
+        logger.debug("Model loaded from disk (mtime changed or first load)")
+
+    return _model_cache["model"], _model_cache["feature_cols"]
+
+
+def _load_scaling_params() -> dict:
+    """Load scaling params saved by train_model.py; fall back to original hardcoded values."""
+    try:
+        mtime = SCALING_PARAMS_FILE.stat().st_mtime
+    except OSError:
+        mtime = None
+
+    if _scaling_cache["params"] is None or _scaling_cache["mtime"] != mtime:
+        if SCALING_PARAMS_FILE.exists():
+            with open(SCALING_PARAMS_FILE) as f:
+                _scaling_cache["params"] = json.load(f)
+        else:
+            # Fallback: original hardcoded values
+            _scaling_cache["params"] = {
+                "content_uniformity_min": 89.8,
+                "content_uniformity_max": 106.3,
+                "yield_scale_range": 16.5,
+                "performance_score_min": -1.82,
+                "performance_score_max": 1.68,
+                "perf_scale_range": 3.5,
+            }
+        _scaling_cache["mtime"] = mtime
+
+    return _scaling_cache["params"]
 
 
 # =========================================================
@@ -97,13 +143,17 @@ def predict_batch(input_params: dict):
     perf_val = float(preds[4])
     energy = float(preds[5])
 
-    # Scale Content_Uniformity from actual range (89.8-106.3%) to 80-100%
-    # Formula: 80 + (uniformity - 89.8) * 20 / 16.5
-    yield_scaled = 80.0 + (uniformity - 89.8) * (20.0 / 16.5)
+    # Scale Content_Uniformity from actual range to 80-100%
+    sp = _load_scaling_params()
+    cu_min = sp["content_uniformity_min"]
+    cu_range = sp["yield_scale_range"]
+    yield_scaled = 80.0 + (uniformity - cu_min) * (20.0 / cu_range)
     yield_scaled = max(80.0, min(100.0, yield_scaled))  # Clamp to 80-100%
 
-    # Scale performance_score from PCA range (-1.82 to +1.68) to percentage (0-100%)
-    perf_scaled = ((perf_val + 1.82) / 3.5) * 100
+    # Scale performance_score from PCA range to percentage (0-100%)
+    ps_min = sp["performance_score_min"]
+    ps_range = sp["perf_scale_range"]
+    perf_scaled = ((perf_val - ps_min) / ps_range) * 100
     perf_scaled = max(0.0, min(100.0, perf_scaled))  # Clamp to 0-100%
 
     quality = (
