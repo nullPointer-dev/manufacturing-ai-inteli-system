@@ -1,0 +1,53 @@
+[
+  {
+    "timestamp": "2026-03-03T13:17:23.770668",
+    "mode": "quality",
+    "cluster_id": 1,
+    "engine": "user_accept",
+    "weights": {},
+    "decision": "ACCEPTED",
+    "reason": "User accepted golden signature update",
+    "best_metrics": {
+      "Quality": 99.94049999999999,
+      "Yield": 93.38545454545452,
+      "Performance": 89.73568292099584,
+      "Energy": 7825.088409052021,
+      "CO2": 6416.572495422657,
+      "Score": 0.7227744722911922
+    }
+  },
+  {
+    "timestamp": "2026-03-03T13:17:41.660245",
+    "mode": "eco",
+    "cluster_id": 1,
+    "engine": "user_accept",
+    "weights": {},
+    "decision": "ACCEPTED",
+    "reason": "User accepted golden signature update",
+    "best_metrics": {
+      "Quality": 99.43359999999997,
+      "Yield": 93.58181818181811,
+      "Performance": 90.42343540322433,
+      "Energy": 7825.088409052021,
+      "CO2": 6416.572495422657,
+      "Score": 0.3293322106968876
+    }
+  },
+  {
+    "timestamp": "2026-03-03T13:22:01.967305",
+    "mode": "custom",
+    "cluster_id": 1,
+    "engine": "user_accept",
+    "weights": {},
+    "decision": "ACCEPTED",
+    "reason": "User accepted golden signature update",
+    "best_metrics": {
+      "Quality": 99.59079999999997,
+      "Yield": 93.64727272727266,
+      "Performance": 91.27244084357604,
+      "Energy": 7853.858172088099,
+      "CO2": 6440.163701112241,
+      "Score": 0.44950008032280353
+    }
+  }
+]

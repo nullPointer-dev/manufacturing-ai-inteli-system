@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 import joblib
 import numpy as np
 import pandas as pd
@@ -12,6 +13,8 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 from data_pipeline import build_pipeline
 
+logger = logging.getLogger(__name__)
+
 
 # =========================================================
 # GLOBAL MODEL DIRECTORY (PROJECT ROOT /models)
@@ -22,7 +25,10 @@ MODEL_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_FILE = MODEL_DIR / "model.pkl"
 FEATURE_FILE = MODEL_DIR / "feature_columns.pkl"
 METRICS_FILE = MODEL_DIR / "model_metrics.json"
+AGGREGATE_METRICS_FILE = MODEL_DIR / "model_aggregate_metrics.json"
 DRIFT_BASELINE_FILE = MODEL_DIR / "drift_baseline.json"
+SCALING_PARAMS_FILE = MODEL_DIR / "scaling_params.json"
+VERSION_LOG = MODEL_DIR / "model_versions.json"
 
 
 # =========================================================
@@ -90,10 +96,10 @@ def train_and_save_model(data_folder=None):
 
     model = MultiOutputRegressor(base_estimator)
 
-    print("Training model...")
+    logger.info("Training model on %d samples with %d features...", len(X_train), len(feature_cols))
     model.fit(X_train, y_train)
 
-    print("Evaluating model on test set...")
+    logger.info("Evaluating model on test set (%d samples)...", len(X_test))
     preds = model.predict(X_test)
 
     # -----------------------------------------------------
@@ -113,6 +119,17 @@ def train_and_save_model(data_folder=None):
     # Save detailed metrics
     with open(METRICS_FILE, "w") as f:
         json.dump(metrics, f, indent=2)
+
+    # Save aggregate metrics separately so the governance backfill
+    # can always find mae, rmse, r2, mape without re-computing them.
+    aggregate = {
+        "mae": float(mae),
+        "rmse": float(rmse),
+        "r2": r2,
+        "mape": mape,
+    }
+    with open(AGGREGATE_METRICS_FILE, "w") as f:
+        json.dump(aggregate, f, indent=2)
 
     # -----------------------------------------------------
     # AGGREGATE METRICS (FOR GOVERNANCE)
@@ -139,13 +156,68 @@ def train_and_save_model(data_folder=None):
         json.dump(baseline, f, indent=2)
 
     # -----------------------------------------------------
+    # SAVE SCALING PARAMS (used by prediction_service and batch_scorer)
+    # These replace all hardcoded min/max constants so rescaling
+    # remains correct automatically after any re-train.
+    # -----------------------------------------------------
+    cu_min = float(df["Content_Uniformity"].min())
+    cu_max = float(df["Content_Uniformity"].max())
+    ps_min = float(df["performance_score"].min())
+    ps_max = float(df["performance_score"].max())
+
+    scaling_params = {
+        "content_uniformity_min": cu_min,
+        "content_uniformity_max": cu_max,
+        "performance_score_min": ps_min,
+        "performance_score_max": ps_max,
+        # derived helpers used directly in rescaling formulas
+        "yield_scale_range": cu_max - cu_min if cu_max != cu_min else 1.0,
+        "perf_scale_range": ps_max - ps_min if ps_max != ps_min else 1.0,
+    }
+    with open(SCALING_PARAMS_FILE, "w") as f:
+        json.dump(scaling_params, f, indent=2)
+
+    # -----------------------------------------------------
     # SAVE MODEL
     # -----------------------------------------------------
     joblib.dump(model, MODEL_FILE)
 
-    print(f"\nModel saved to: {MODEL_FILE}")
-    print(f"Feature columns saved to: {FEATURE_FILE}")
-    print(f"Metrics saved to: {METRICS_FILE}")
+    logger.info("Model saved to: %s", MODEL_FILE)
+    logger.info("Feature columns saved to: %s", FEATURE_FILE)
+    logger.info("Metrics: MAE=%.4f  RMSE=%.4f  R2=%.4f", mae, rmse, r2)
+    logger.info("Scaling params saved to: %s", SCALING_PARAMS_FILE)
+
+    # -----------------------------------------------------------------
+    # WRITE VERSION LOG (read by governance page via api_get_model_history)
+    # Same schema used by learning_controller.py so both code paths produce
+    # consistent entries in model_versions.json.
+    # -----------------------------------------------------------------
+    if VERSION_LOG.exists():
+        try:
+            with open(VERSION_LOG, "r") as f:
+                version_history = json.load(f)
+        except Exception:
+            version_history = []
+    else:
+        version_history = []
+
+    version_entry = {
+        "time": datetime.now().isoformat(),
+        "reason": {"initial_training": True},
+        "metrics": {
+            "mae": float(mae),
+            "rmse": float(rmse),
+            "r2": r2,
+            "mape": mape,
+        },
+        "dataset_size": int(len(df)),
+        "model_version": len(version_history) + 1,
+    }
+    version_history.append(version_entry)
+    with open(VERSION_LOG, "w") as f:
+        json.dump(version_history, f, indent=2)
+
+    logger.info("Version log updated: v%d", version_entry["model_version"])
 
     return model, {
         "mae": float(mae),

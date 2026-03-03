@@ -1,0 +1,16 @@
+[
+  {
+    "time": null,
+    "reason": {
+      "initial_training": true
+    },
+    "metrics": {
+      "mae": 40.818736,
+      "rmse": null,
+      "r2": 0.977018,
+      "mape": null
+    },
+    "dataset_size": null,
+    "model_version": 1
+  }
+]

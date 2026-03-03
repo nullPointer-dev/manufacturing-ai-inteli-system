@@ -1,18 +1,46 @@
 import json
+import logging
 import math
 from pathlib import Path
 
+from constants import CO2_FACTOR
 from prediction_service import predict_batch
 from optimizer_auto import optimize_auto
 from optimizer_target import optimize_target
 from optimizer_core import compute_pareto_front
-from golden_updater import check_and_update_golden, _safe_load, SESSION_FILE, HISTORY_FILE, REGISTRY_FILE, clear_session_and_archive, get_archive, log_rejection, get_rejections
+from golden_updater import check_and_update_golden, _safe_load, SESSION_FILE, HISTORY_FILE, clear_session_and_archive, get_archive, log_rejection, get_rejections
 from explainability_engine import get_global_feature_importance
 from learning_controller import check_and_retrain
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 MODEL_DIR = BASE_DIR / "models"
 VERSION_LOG = MODEL_DIR / "model_versions.json"
+
+# =========================================================
+# SHARED EXCLUDED PARAMETERS
+# Single source of truth — used by both SHAP and batch analysis.
+# Contains z-scores, composite KPI scores, and columns that
+# duplicate a controllable input (e.g. duration_* = *_Time).
+# =========================================================
+EXCLUDED_PARAMS = {
+    "Hardness_zscore",
+    "total_energy_zscore",
+    "Content_Uniformity_zscore",
+    "Dissolution_Rate_zscore",
+    "quality_score",
+    "yield_score",
+    "performance_score",
+    "energy_efficiency_score",
+    "process_intensity",
+    "stability_index",
+    "energy_per_tablet",
+    "process_efficiency",
+    "temperature_pressure_ratio",
+    "duration_granulation",   # duplicate of Granulation_Time
+    "duration_drying",        # duplicate of Drying_Time
+}
 
 # =========================================================
 # PREDICTION
@@ -109,6 +137,22 @@ def api_accept_golden(best_row: dict,
         force=True
     )
 
+    # Record decision for future audit / learning
+    try:
+        from decision_engine import log_decision
+        metrics = {k: best_row.get(k, 0) for k in ("Quality", "Yield", "Performance", "Energy", "CO2", "Score")}
+        log_decision(
+            mode=mode,
+            cluster_id=int(cluster_id),
+            engine="user_accept",
+            weights={},
+            decision="ACCEPTED",
+            reason="User accepted golden signature update",
+            best_metrics=metrics,
+        )
+    except Exception:
+        logger.warning("Could not log accept decision to decision_engine", exc_info=True)
+
     return {"golden_updated": success}
 
 
@@ -136,6 +180,65 @@ def api_clear_session():
 # =========================================================
 # MODEL HISTORY
 # =========================================================
+AGGREGATE_METRICS_FILE = MODEL_DIR / "model_aggregate_metrics.json"
+
+
+def _ensure_version_log():
+    """
+    Called once at startup. If model.pkl exists but model_versions.json
+    does not, synthesise a v1 entry from model_aggregate_metrics.json
+    (written by every train_and_save_model call) or fall back to the
+    per-target model_metrics.json.
+    """
+    if VERSION_LOG.exists():
+        return
+
+    MODEL_FILE = MODEL_DIR / "model.pkl"
+    if not MODEL_FILE.exists():
+        return  # no model trained yet – nothing to backfill
+
+    entry = {
+        "time": None,
+        "reason": {"initial_training": True},
+        "metrics": {"mae": None, "rmse": None, "r2": None, "mape": None},
+        "dataset_size": None,
+        "model_version": 1,
+    }
+
+    # Prefer the aggregate file (all four metrics available)
+    if AGGREGATE_METRICS_FILE.exists():
+        try:
+            with open(AGGREGATE_METRICS_FILE, "r") as f:
+                agg = json.load(f)
+            entry["metrics"] = {
+                "mae":  round(float(agg["mae"]),  6),
+                "rmse": round(float(agg["rmse"]), 6),
+                "r2":   round(float(agg["r2"]),   6),
+                "mape": round(float(agg["mape"]), 6),
+            }
+        except Exception:
+            logger.warning("Could not read model_aggregate_metrics.json for backfill", exc_info=True)
+
+    # Fall back to per-target file (only mae + r2)
+    elif (MODEL_DIR / "model_metrics.json").exists():
+        try:
+            with open(MODEL_DIR / "model_metrics.json", "r") as f:
+                per_target = json.load(f)
+            maes = [v["mae"] for v in per_target.values() if "mae" in v]
+            r2s  = [v["r2"]  for v in per_target.values() if "r2"  in v]
+            if maes:
+                entry["metrics"]["mae"] = round(float(sum(maes) / len(maes)), 6)
+            if r2s:
+                entry["metrics"]["r2"]  = round(float(sum(r2s)  / len(r2s)),  6)
+        except Exception:
+            logger.warning("Could not read model_metrics.json for backfill", exc_info=True)
+
+    VERSION_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with open(VERSION_LOG, "w") as f:
+        json.dump([entry], f, indent=2)
+    logger.info("Governance: backfilled model_versions.json (v1 from existing model)")
+
+
 def api_get_model_history():
     if VERSION_LOG.exists():
         with open(VERSION_LOG, "r") as f:
@@ -146,20 +249,12 @@ def api_get_model_history():
 # =========================================================
 # FEATURE IMPORTANCE
 # =========================================================
-_SHAP_EXCLUDED = {
-    "Hardness_zscore", "total_energy_zscore", "Content_Uniformity_zscore",
-    "Dissolution_Rate_zscore", "quality_score", "yield_score",
-    "performance_score", "energy_efficiency_score", "process_intensity",
-    "stability_index", "energy_per_tablet", "process_efficiency",
-    "temperature_pressure_ratio", "duration_granulation", "duration_drying",
-}
-
 def api_get_feature_importance():
     df = get_global_feature_importance()
     if df is None:
         return {"status": "no_data"}
-    # Remove redundant/derived features (z-scores, composite KPIs, duplicates)
-    df = df[~df["feature"].isin(_SHAP_EXCLUDED)].reset_index(drop=True)
+    # Remove redundant/derived features using shared EXCLUDED_PARAMS constant
+    df = df[~df["feature"].isin(EXCLUDED_PARAMS)].reset_index(drop=True)
     return df.to_dict(orient="records")
 
 
@@ -216,7 +311,6 @@ def api_analyze_batch(batch_id: str):
     from data_pipeline import build_pipeline
     from correction_engine import analyze_batch_against_golden
     from golden_signature import identify_golden_signatures
-    from context_engine import assign_context_clusters
     import joblib
     
     # Load all data
@@ -233,17 +327,36 @@ def api_analyze_batch(batch_id: str):
     
     batch_row = batch_data.iloc[0].to_dict()
     
-    # Assign context clusters to historical data
-    df, _ = assign_context_clusters(df)
-    
-    # Get the cluster for the current batch (use mode of historical data)
-    current_cluster = df["context_cluster"].mode()[0] if "context_cluster" in df.columns else 1
+    # Determine context cluster using the persisted cluster model —
+    # avoids refitting KMeans on the full dataset on every request.
+    CLUSTER_FILE = MODEL_DIR / "context_cluster.pkl"
+    SCALER_FILE  = MODEL_DIR / "context_scaler.pkl"
+    CONTEXT_FEATURES = ["Batch_Size", "Machine_Speed", "Compression_Force",
+                        "avg_temperature", "avg_pressure"]
+
+    current_cluster = 1  # default
+    try:
+        if CLUSTER_FILE.exists() and SCALER_FILE.exists():
+            scaler  = joblib.load(SCALER_FILE)
+            kmeans  = joblib.load(CLUSTER_FILE)
+            avail   = [f for f in CONTEXT_FEATURES if f in batch_data.columns]
+            if len(avail) >= 2:
+                X_row = batch_data[avail].fillna(batch_data[avail].median())
+                X_scaled = scaler.transform(X_row)
+                current_cluster = int(kmeans.predict(X_scaled)[0])
+        else:
+            # Persisted model not available — fall back to dataset-wide mode
+            from context_engine import assign_context_clusters
+            df_clustered, _ = assign_context_clusters(df)
+            current_cluster = int(df_clustered["context_cluster"].mode()[0])
+    except Exception:
+        logger.warning("Could not determine context cluster for batch %s; using default 1", batch_id)
+        current_cluster = 1
     
     # Identify golden signatures and ranges from historical top performers
-    # This recomputes ranges from the best historical batches
     _, golden_ranges, _ = identify_golden_signatures(
         df,
-        mode="balanced",  # Use balanced mode for analysis
+        mode="balanced",
         cluster_id=current_cluster,
         custom_weights=None
     )
@@ -254,27 +367,7 @@ def api_analyze_batch(batch_id: str):
             "message": "Could not compute golden ranges from historical data. Need at least 10 batches."
         }
     
-    # Strip parameters that are redundant / not directly actionable:
-    # - z-score variants (already represented by the base metric)
-    # - composite computed KPI scores (outcomes, not controllable process inputs)
-    # - process-data duration columns that duplicate production-data input params
-    EXCLUDED_PARAMS = {
-        "Hardness_zscore",
-        "total_energy_zscore",
-        "Content_Uniformity_zscore",
-        "Dissolution_Rate_zscore",
-        "quality_score",
-        "yield_score",
-        "performance_score",
-        "energy_efficiency_score",
-        "process_intensity",
-        "stability_index",
-        "energy_per_tablet",
-        "process_efficiency",
-        "temperature_pressure_ratio",
-        "duration_granulation",   # duplicate of Granulation_Time
-        "duration_drying",        # duplicate of Drying_Time
-    }
+    # Filter out non-actionable parameters using shared constant
     golden_ranges = {k: v for k, v in golden_ranges.items() if k not in EXCLUDED_PARAMS}
 
     # Load model and features for impact prediction
@@ -285,7 +378,7 @@ def api_analyze_batch(batch_id: str):
         model = joblib.load(MODEL_DIR / "model.pkl")
         feature_cols = joblib.load(MODEL_DIR / "feature_columns.pkl")
     except Exception as e:
-        print(f"[WARNING] Could not load model for batch analysis: {e}")
+        logger.warning("Could not load model for batch analysis: %s", e)
     
     # Analyze batch
     report_df = analyze_batch_against_golden(
@@ -306,7 +399,6 @@ def api_analyze_batch(batch_id: str):
         ).drop(columns=["_severity_rank", "_abs_drift"])
     
     # Calculate CO2 from energy
-    CO2_FACTOR = 0.82  # kg CO₂ per kWh
     energy = batch_row.get("total_energy", 0)
     co2 = energy * CO2_FACTOR
     
@@ -347,8 +439,6 @@ def api_get_dashboard_stats():
 
     df = build_pipeline()
     n = len(df)
-
-    CO2_FACTOR = 0.82  # kg CO₂ per kWh
 
     # ------------------------------------------------------------------
     # Performance metric: normalise quality/time to 0-100 across ALL batches
@@ -475,7 +565,7 @@ def api_get_anomalies():
             "yield": float(row.get("yield_score", 0)) * 100,
             "performance": float(row.get("performance_score", 0)) * 100,
             "energy": float(row.get("total_energy", 0)),
-            "co2": float(row.get("total_energy", 0)) * 0.82
+            "co2": float(row.get("total_energy", 0)) * CO2_FACTOR
         })
     
     # Sort by anomaly score descending
@@ -537,7 +627,7 @@ def api_get_production_trends():
             "energy": round(float(row["total_energy"]), 2),
             "performance": round(float(row["performance_metric_calc"]), 2),
             "content_uniformity": round(float(row["Content_Uniformity"]), 2),
-            "co2": round(float(row["total_energy"]) * 0.82, 2)
+            "co2": round(float(row["total_energy"]) * CO2_FACTOR, 2)
         })
     
     return {
