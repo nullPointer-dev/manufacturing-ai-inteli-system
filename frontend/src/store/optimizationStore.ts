@@ -11,6 +11,8 @@ interface OptimizationState {
   proposal: boolean
   clusterId: number | null
   scenarioKey: string | null
+  isLoading: boolean
+  error: string | null
   
   setMode: (mode: OptimizationMode) => void
   setCustomWeights: (weights: Partial<CustomWeights>) => void
@@ -20,6 +22,8 @@ interface OptimizationState {
   setSelectedResult: (result: OptimizationResult | null) => void
   setProposal: (proposal: boolean, clusterId: number, scenarioKey?: string) => void
   clearProposal: () => void
+  setLoading: (isLoading: boolean) => void
+  setError: (error: string | null) => void
   reset: () => void
 }
 
@@ -41,6 +45,8 @@ export const useOptimizationStore = create<OptimizationState>((set) => ({
   proposal: false,
   clusterId: null,
   scenarioKey: null,
+  isLoading: false,
+  error: null,
 
   setMode: (mode) => set({ mode }),
 
@@ -67,6 +73,10 @@ export const useOptimizationStore = create<OptimizationState>((set) => ({
   clearProposal: () =>
     set({ proposal: false, clusterId: null, scenarioKey: null }),
 
+  setLoading: (isLoading) => set({ isLoading }),
+
+  setError: (error) => set({ error }),
+
   reset: () =>
     set({
       mode: 'balanced',
@@ -78,5 +88,8 @@ export const useOptimizationStore = create<OptimizationState>((set) => ({
       proposal: false,
       clusterId: null,
       scenarioKey: null,
+      isLoading: false,
+      error: null,
     }),
+
 }))

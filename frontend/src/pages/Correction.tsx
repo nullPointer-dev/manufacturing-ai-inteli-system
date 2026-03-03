@@ -2,7 +2,8 @@ import { motion } from 'framer-motion'
 import { AlertTriangle, Wrench, AlertCircle, CheckCircle, TrendingDown, TrendingUp } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AnimatedDropdown } from '@/components/ui/animated-dropdown'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { correctionApi } from '@/lib/api'
 import {
   Table,
@@ -12,13 +13,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-
-interface Batch {
-  Batch_ID: string
-  Quality_Score: number
-  Yield_Percentage: number
-  Performance_Index: number
-}
 
 interface AnalysisResult {
   Parameter: string
@@ -32,67 +26,33 @@ interface AnalysisResult {
 }
 
 export function Correction() {
-  const [batches, setBatches] = useState<Batch[]>([])
   const [selectedBatch, setSelectedBatch] = useState<string>('')
   const [analysis, setAnalysis] = useState<AnalysisResult[] | null>(null)
-  const [batchInfo, setBatchInfo] = useState<any>(null)
-  const [summary, setSummary] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
-  const [batchesLoading, setBatchesLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [batchInfo, setBatchInfo] = useState<{ quality?: number; energy?: number; co2?: number } | null>(null)
+  const [summary, setSummary] = useState<{ critical: number; moderate: number; ok: number } | null>(null)
 
-  useEffect(() => {
-    loadBatches()
-  }, [])
+  const { data: batchesData, isLoading: batchesLoading, isError: batchesLoadError } = useQuery({
+    queryKey: ['correction-batches'],
+    queryFn: correctionApi.getBatches,
+    retry: 2,
+  })
 
-  const loadBatches = async () => {
-    try {
-      setBatchesLoading(true)
-      setError(null)
-      const response = await correctionApi.getBatches()
-      console.log('Batches response:', response)
-      console.log('Number of batches:', response.batches?.length)
-      setBatches(response.batches)
-    } catch (err: any) {
-      const errorMsg = err?.response?.data?.detail || err?.message || 'Failed to load batches'
-      setError(errorMsg)
-      console.error('Error loading batches:', err)
-      console.error('Error details:', errorMsg)
-    } finally {
-      setBatchesLoading(false)
-    }
-  }
+  const batches = batchesData?.batches ?? []
 
-  const analyzeBatch = async (batchId: string) => {
-    if (!batchId) return
-    
-    setLoading(true)
-    setError(null)
-    setAnalysis(null)
-    
-    try {
-      const response = await correctionApi.analyzeBatch(batchId)
-      
-      if (response.status === 'error') {
-        setError('Analysis failed')
-        return
-      }
-      
+  const analysisMutation = useMutation({
+    mutationFn: (batchId: string) => correctionApi.analyzeBatch(batchId),
+    onSuccess: (response) => {
+      if (response.status === 'error') return
       setAnalysis(response.analysis)
       setBatchInfo(response.batch_info)
       setSummary(response.summary)
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Failed to analyze batch')
-      console.error('Error analyzing batch:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
+    },
+  })
 
   const handleBatchChange = (batchId: string) => {
     setSelectedBatch(batchId)
     if (batchId) {
-      analyzeBatch(batchId)
+      analysisMutation.mutate(batchId)
     } else {
       setAnalysis(null)
       setBatchInfo(null)
@@ -145,6 +105,11 @@ export function Correction() {
           <CardTitle className="text-lg">Select Batch for Analysis</CardTitle>
         </CardHeader>
         <CardContent className="pb-8">
+          {batchesLoadError && (
+            <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <p className="text-red-500 text-sm">Failed to load batches. Please check the backend connection.</p>
+            </div>
+          )}
           <div className="space-y-6">
             <AnimatedDropdown
               value={selectedBatch}
@@ -154,19 +119,21 @@ export function Correction() {
                 label: `Batch ${batch.Batch_ID} (Quality: ${batch.Quality_Score.toFixed(2)})`,
               }))}
               placeholder="-- Select a Batch --"
-              disabled={loading}
+              disabled={analysisMutation.isPending}
               loading={batchesLoading}
             />
-            {loading && (
+            {analysisMutation.isPending && (
               <div className="text-center">
                 <span className="text-sm text-muted-foreground">Analyzing batch...</span>
               </div>
             )}
           </div>
           
-          {error && (
+          {analysisMutation.isError && (
             <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
-              <p className="text-red-500 text-sm">{error}</p>
+              <p className="text-red-500 text-sm">
+                {(analysisMutation.error as Error)?.message ?? 'Failed to analyze batch'}
+              </p>
             </div>
           )}
         </CardContent>
@@ -312,7 +279,7 @@ export function Correction() {
       )}
 
       {/* No Analysis State */}
-      {!analysis && !loading && selectedBatch && (
+      {!analysis && !analysisMutation.isPending && selectedBatch && (
         <Card className="glass-panel">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
