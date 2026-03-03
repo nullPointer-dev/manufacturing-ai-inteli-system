@@ -58,12 +58,12 @@ $backJob = Start-Process -FilePath $PYTHON `
     -PassThru `
     -WindowStyle Normal
 
-Start-Sleep -Seconds 3
+Start-Sleep -Seconds 6
 
 $healthOk = $false
-for ($i = 1; $i -le 10; $i++) {
+for ($i = 1; $i -le 24; $i++) {
     try {
-        $r = Invoke-RestMethod -Uri "http://localhost:8001/api/health" -TimeoutSec 2 -ErrorAction Stop
+        $r = Invoke-RestMethod -Uri "http://localhost:8001/api/health" -TimeoutSec 3 -ErrorAction Stop
         if ($r.status -eq "healthy") { $healthOk = $true; break }
     } catch {}
     Start-Sleep -Seconds 1
@@ -72,7 +72,7 @@ for ($i = 1; $i -le 10; $i++) {
 if ($healthOk) {
     Write-Ok "Backend healthy  ->  http://localhost:8001"
 } else {
-    Write-Err "Backend did not respond after 10 s. Check the backend window for errors."
+    Write-Err "Backend did not respond after 30 s. Check the backend window for errors."
 }
 
 # ---- start frontend ----------------------------------------
