@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { Dialog } from '@/components/ui/dialog'
 import { useOptimizationStore } from '@/store/optimizationStore'
+import { useSystemStore } from '@/store/systemStore'
 import { optimizationApi, goldenApi } from '@/lib/api'
 import { formatNumber } from '@/lib/utils'
 import type { OptimizationMode } from '@/types'
@@ -37,6 +38,7 @@ export function Optimization() {
     proposal,
     clusterId,
     scenarioKey,
+    selectedResult,
     setMode,
     setCustomWeights,
     setResults,
@@ -45,6 +47,8 @@ export function Optimization() {
     setProposal,
     clearProposal,
   } = useOptimizationStore()
+
+  const { setProcessing } = useSystemStore()
 
   const [optimizationType, setOptimizationType] = useState<'auto' | 'target'>('auto')
   const [constraints, setConstraints] = useState({
@@ -55,6 +59,19 @@ export function Optimization() {
   })
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectReason, setRejectReason] = useState('Score too low')
+
+  // When one slider moves, proportionally redistribute the remaining budget
+  // across the other keys so the sum is always exactly 100%.
+  const handleWeightChange = (changedKey: string, newPct: number) => {
+    const newVal = Math.min(99, Math.max(1, newPct)) / 100
+    const others = Object.entries(customWeights).filter(([k]) => k !== changedKey)
+    const othersSum = others.reduce((s, [, v]) => s + v, 0)
+    const remaining = 1 - newVal
+    const redistributed = othersSum === 0
+      ? Object.fromEntries(others.map(([k]) => [k, remaining / others.length]))
+      : Object.fromEntries(others.map(([k, v]) => [k, (v / othersSum) * remaining]))
+    setCustomWeights({ ...redistributed, [changedKey]: newVal })
+  }
 
   const optimizeMutation = useMutation({
     mutationFn: async () => {
@@ -71,12 +88,14 @@ export function Optimization() {
         )
       }
     },
+    onMutate: () => {
+      setProcessing(true, 'Running NSGA-II multi-objective optimization...')
+    },
     onSuccess: (data) => {
-      console.log('Optimization response:', data)
+      setProcessing(false)
       if (data.status === 'success') {
         const result = data.top_result || data.best_solution
         if (result) {
-          console.log('Setting results:', result)
           setResults([result])
           setAllResults(data.all_results ?? [])
           setParetoFront(data.pareto_front ?? [])
@@ -89,22 +108,31 @@ export function Optimization() {
       }
     },
     onError: (error) => {
+      setProcessing(false)
       console.error('Optimization error:', error)
     },
   })
 
   const acceptGoldenMutation = useMutation({
     mutationFn: async () => {
-      if (!results[0] || clusterId === null) return
+      const top = selectedResult ?? results[0]
+      if (!top || clusterId === null) return
       return goldenApi.acceptGolden(
-        results[0],
+        top,
         mode,
         clusterId,
         scenarioKey || undefined
       )
     },
+    onMutate: () => {
+      setProcessing(true, 'Updating golden signature...')
+    },
     onSuccess: () => {
+      setProcessing(false)
       clearProposal()
+    },
+    onError: () => {
+      setProcessing(false)
     },
   })
 
@@ -221,7 +249,12 @@ export function Optimization() {
             >
               <Card className="glass-panel border-teal-500/30">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-base">Custom Weights</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">Custom Weights</CardTitle>
+                    <span className="text-sm font-mono font-semibold text-muted-foreground">
+                      Sliders auto-balance to 100%
+                    </span>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-5 gap-6">
@@ -232,9 +265,10 @@ export function Optimization() {
                           <span className="text-teal-400 font-semibold">{(value * 100).toFixed(0)}%</span>
                         </div>
                         <Slider
-                          value={[value * 100]}
-                          onValueChange={([v]) => setCustomWeights({ ...customWeights, [key]: v / 100 })}
-                          max={100}
+                          value={[Math.round(value * 100)]}
+                          onValueChange={([v]) => handleWeightChange(key, v)}
+                          min={1}
+                          max={99}
                           step={1}
                         />
                       </div>
@@ -588,7 +622,9 @@ export function Optimization() {
                           <Scatter
                             name="Dominated"
                             data={allResults.filter(r =>
-                              !paretoFront.some(p => p.Energy === r.Energy && p.Quality === r.Quality)
+                              !paretoFront.some(p =>
+                                Math.abs(p.Energy - r.Energy) < 1e-9 && Math.abs(p.Quality - r.Quality) < 1e-9
+                              )
                             )}
                             fill="rgba(156,163,175,0.4)"
                             stroke="rgba(156,163,175,0.6)"
