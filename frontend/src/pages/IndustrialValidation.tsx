@@ -233,7 +233,11 @@ export function IndustrialValidation() {
                 </p>
               </div>
 
-              {/* Calculate Button */}
+              {calculateMutation.isError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+                  Calculation failed. Please check your inputs and try again.
+                </div>
+              )}
               <Button
                 onClick={handleCalculate}
                 disabled={calculateMutation.isPending}

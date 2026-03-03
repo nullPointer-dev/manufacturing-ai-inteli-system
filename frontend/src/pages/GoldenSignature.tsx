@@ -9,28 +9,38 @@ import { Dialog } from '@/components/ui/dialog'
 import { goldenApi } from '@/lib/api'
 import { formatNumber } from '@/lib/utils'
 import { format } from 'date-fns'
+import type { GoldenMetrics } from '@/types'
+
+type GoldenClusterMap = Record<string, GoldenMetrics>
+type GoldenModeMap = Record<string, GoldenClusterMap>
+type GoldenCustomMap = Record<string, Record<string, GoldenClusterMap>>
+
+interface ArchivedSession {
+  timestamp: string
+  golden_signatures: Record<string, GoldenClusterMap | Record<string, GoldenClusterMap>>
+}
 
 export function GoldenSignature() {
   const [view, setView] = useState<'session' | 'archive'>('session')
   const [showClearDialog, setShowClearDialog] = useState(false)
   const queryClient = useQueryClient()
 
-  const { data: registry = {} } = useQuery({
+  const { data: registry = {}, isError: registryError } = useQuery({
     queryKey: ['golden-registry'],
     queryFn: goldenApi.getRegistry,
   })
 
-  const { data: history = [] } = useQuery({
+  const { data: history = [], isError: historyError } = useQuery({
     queryKey: ['golden-history'],
     queryFn: goldenApi.getHistory,
   })
 
-  const { data: archive = { archived_sessions: [] } } = useQuery({
+  const { data: archive = { archived_sessions: [] }, isError: archiveError } = useQuery({
     queryKey: ['golden-archive'],
     queryFn: goldenApi.getArchive,
   })
 
-  const { data: rejectionData = { rejections: [] } } = useQuery({
+  const { data: rejectionData = { rejections: [] }, isError: rejectionError } = useQuery({
     queryKey: ['rejection-history'],
     queryFn: goldenApi.getRejectionHistory,
   })
@@ -120,6 +130,12 @@ export function GoldenSignature() {
           )}
         </div>
       </div>
+
+      {(registryError || historyError || archiveError || rejectionError) && (
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+          Failed to load some golden signature data. Retrying automatically.
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="glass-panel border-neon-green/30">

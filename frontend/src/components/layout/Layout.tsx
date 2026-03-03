@@ -1,6 +1,6 @@
-import { ReactNode } from 'react'
+import { ReactNode, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Loader2 } from 'lucide-react'
+import { Loader2, WifiOff } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { useSystemStore } from '@/store/systemStore'
@@ -10,7 +10,13 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
-  const { isProcessing, processingMessage } = useSystemStore()
+  const { isProcessing, processingMessage, isOnline, startHealthPolling } = useSystemStore()
+
+  // Start background health polling when the app first mounts; clean up on unmount.
+  useEffect(() => {
+    const stop = startHealthPolling()
+    return stop
+  }, [startHealthPolling])
 
   return (
     <>
@@ -63,6 +69,20 @@ export function Layout({ children }: LayoutProps) {
         <Sidebar />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header />
+          {/* Offline Banner */}
+          <AnimatePresence>
+            {!isOnline && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="flex items-center justify-center gap-2 bg-red-500/15 border-b border-red-500/30 px-4 py-2 text-sm text-red-400 font-medium"
+              >
+                <WifiOff className="h-4 w-4" />
+                Backend unreachable — retrying in 30 s
+              </motion.div>
+            )}
+          </AnimatePresence>
           <main className="flex-1 overflow-y-auto p-6">
             {children}
           </main>

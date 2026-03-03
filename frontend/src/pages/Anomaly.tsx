@@ -9,12 +9,12 @@ import { formatNumber } from '@/lib/utils'
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, ZAxis } from 'recharts'
 
 export function Anomaly() {
-  const { data: anomalies, isLoading } = useQuery({
+  const { data: anomalies, isLoading, isError: anomaliesError } = useQuery({
     queryKey: ['anomalies'],
     queryFn: anomalyApi.getAnomalies,
   })
 
-  const { data: assetReliability, isLoading: assetLoading } = useQuery({
+  const { data: assetReliability, isLoading: assetLoading, isError: assetError } = useQuery({
     queryKey: ['asset-reliability'],
     queryFn: anomalyApi.getAssetReliability,
   })
@@ -60,6 +60,17 @@ export function Anomaly() {
           Isolation Forest analysis with batch-level intelligence and risk assessment
         </p>
       </div>
+
+      {anomaliesError && (
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+          Failed to load anomaly data. Retrying automatically.
+        </div>
+      )}
+      {assetError && (
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+          Failed to load asset reliability data. Retrying automatically.
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-4">
