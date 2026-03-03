@@ -4,48 +4,63 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Factory, AlertTriangle, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { MetricCard } from '@/components/dashboard/MetricCard'
+import { GoldenTimeline } from '@/components/dashboard/GoldenTimeline'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/tooltip'
-import { systemApi, anomalyApi } from '@/lib/api'
+import { systemApi, anomalyApi, goldenApi } from '@/lib/api'
 import { useSystemStore } from '@/store/systemStore'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts'
 
 export function Dashboard() {
-  const { setStatus } = useSystemStore()
+  const { setStatus, setOnline } = useSystemStore()
   const navigate = useNavigate()
 
   // Fetch system status
-  const { data: systemStatus } = useQuery({
+  const { data: systemStatus, isError: statusError } = useQuery({
     queryKey: ['system-status'],
     queryFn: systemApi.getStatus,
     refetchInterval: 30000,
   })
 
-  // Sync system status to store when data changes
+  // Sync system status + online flag to store
   useEffect(() => {
-    if (systemStatus) setStatus(systemStatus)
-  }, [systemStatus, setStatus])
+    if (systemStatus) {
+      setStatus(systemStatus)
+      setOnline(true)
+    }
+  }, [systemStatus, setStatus, setOnline])
+
+  useEffect(() => {
+    if (statusError) setOnline(false)
+  }, [statusError, setOnline])
 
   // Fetch dashboard statistics from real data
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading, isError: statsError } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: systemApi.getDashboardStats,
     refetchInterval: 60000, // Refresh every minute
   })
 
   // Fetch anomaly detection results
-  const { data: anomalies, isLoading: anomaliesLoading } = useQuery({
+  const { data: anomalies, isLoading: anomaliesLoading, isError: anomaliesError } = useQuery({
     queryKey: ['anomalies'],
     queryFn: anomalyApi.getAnomalies,
     refetchInterval: 120000, // Refresh every 2 minutes
   })
 
   // Fetch production trends
-  const { data: productionTrends, isLoading: trendsLoading } = useQuery({
+  const { data: productionTrends, isLoading: trendsLoading, isError: trendsError } = useQuery({
     queryKey: ['production-trends'],
     queryFn: systemApi.getProductionTrends,
     refetchInterval: 120000, // Refresh every 2 minutes
+  })
+
+  // Fetch golden signature history for timeline widget
+  const { data: goldenHistory = [] } = useQuery({
+    queryKey: ['golden-history'],
+    queryFn: goldenApi.getHistory,
+    refetchInterval: 60000,
   })
 
   // Check if initial data is loading
@@ -133,7 +148,22 @@ export function Dashboard() {
         animate={{ opacity: 1 }}
         className="space-y-6"
       >
-      {/* Hero Section */}
+      {/* Error Banners */}
+      {statsError && (
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+          Failed to load dashboard statistics. Retrying automatically.
+        </div>
+      )}
+      {anomaliesError && (
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+          Failed to load anomaly data. Retrying automatically.
+        </div>
+      )}
+      {trendsError && (
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+          Failed to load production trends. Retrying automatically.
+        </div>
+      )}
       <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-primary/20 to-teal-500/20 p-6 border border-teal-500/30">
         <div className="relative z-10">
           <h1 className="text-3xl font-bold mb-2">Manufacturing AI Intelligence System</h1>
@@ -246,7 +276,7 @@ export function Dashboard() {
                   />
                   <YAxis 
                     stroke="hsl(var(--muted-foreground))"
-                    domain={[0, 120]}
+                    domain={['auto', 'auto']}
                     label={{ value: 'Quality Score', angle: -90, position: 'insideLeft', offset: 10, style: { textAnchor: 'middle' } }}
                   />
                   <RechartsTooltip 
@@ -299,7 +329,7 @@ export function Dashboard() {
                   />
                   <YAxis 
                     stroke="hsl(var(--muted-foreground))"
-                    domain={[0, 18000]}
+                    domain={['auto', 'auto']}
                     label={{ value: 'Energy (kWh)', angle: -90, position: 'insideLeft', offset: 0, style: { textAnchor: 'middle' } }}
                   />
                   <RechartsTooltip 
@@ -352,7 +382,7 @@ export function Dashboard() {
                   />
                   <YAxis 
                     stroke="hsl(var(--muted-foreground))"
-                    domain={[0, 600]}
+                    domain={['auto', 'auto']}
                     label={{ value: 'Performance Score', angle: -90, position: 'insideLeft', offset: 10, style: { textAnchor: 'middle' } }}
                   />
                   <RechartsTooltip 
@@ -405,7 +435,7 @@ export function Dashboard() {
                   />
                   <YAxis 
                     stroke="hsl(var(--muted-foreground))"
-                    domain={[0, 120]}
+                    domain={['auto', 'auto']}
                     label={{ value: 'Content Uniformity (%)', angle: -90, position: 'insideLeft', offset: 10, style: { textAnchor: 'middle' } }}
                   />
                   <RechartsTooltip 
@@ -435,6 +465,11 @@ export function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Recent Golden Signature Activity */}
+      {goldenHistory.length > 0 && (
+        <GoldenTimeline entries={goldenHistory} />
+      )}
     </motion.div>
     </>
   )
