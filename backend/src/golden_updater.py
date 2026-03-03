@@ -1,6 +1,9 @@
 import json
+import logging
 from pathlib import Path
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
 SESSION_FILE = MODEL_DIR / "golden_session.json"  # Current session
@@ -21,7 +24,8 @@ def _safe_load(path, default):
     try:
         with open(path, "r") as f:
             return json.load(f)
-    except:
+    except Exception:
+        logger.warning("Failed to load JSON from %s; returning default", path)
         return default
 
 

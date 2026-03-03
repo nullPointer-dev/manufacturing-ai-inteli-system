@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import logging
+from pathlib import Path
 
 from data_pipeline import build_pipeline
 from context_engine import assign_context_clusters
@@ -7,6 +9,10 @@ from optimizer_nsga2 import nsga2_optimize
 from golden_updater import check_if_better
 from batch_scorer import attach_predictions
 from scenario_utils import normalize_weights, scenario_key_from_weights
+
+logger = logging.getLogger(__name__)
+
+_MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
 
 
 # =========================================================
@@ -62,12 +68,37 @@ def optimize_auto(
 
     # ------------------------------------------------------
     # DETERMINE CONTEXT CLUSTER
+    # Use the persisted KMeans model to avoid a redundant
+    # build_pipeline() + attach_predictions() round-trip.
+    # Falls back to a single pipeline call only when the
+    # persisted model is not yet available.
     # ------------------------------------------------------
-    hist_df = build_pipeline()
-    hist_df = attach_predictions(hist_df)
-    hist_df, _ = assign_context_clusters(hist_df)
+    CLUSTER_FILE = _MODEL_DIR / "context_cluster.pkl"
+    SCALER_FILE  = _MODEL_DIR / "context_scaler.pkl"
+    CONTEXT_FEATURES = ["Batch_Size", "Machine_Speed", "Compression_Force",
+                        "avg_temperature", "avg_pressure"]
 
-    current_cluster = hist_df["context_cluster"].mode()[0]
+    current_cluster = 1  # safe default
+    try:
+        import joblib
+        if CLUSTER_FILE.exists() and SCALER_FILE.exists():
+            hist_df = build_pipeline()   # uses cache — effectively free
+            scaler = joblib.load(SCALER_FILE)
+            kmeans = joblib.load(CLUSTER_FILE)
+            avail = [f for f in CONTEXT_FEATURES if f in hist_df.columns]
+            if len(avail) >= 2:
+                X = hist_df[avail].fillna(hist_df[avail].median())
+                X_scaled = scaler.transform(X)
+                clusters = kmeans.predict(X_scaled)
+                vals, counts = np.unique(clusters, return_counts=True)
+                current_cluster = int(vals[counts.argmax()])
+        else:
+            hist_df = build_pipeline()
+            hist_df = attach_predictions(hist_df)
+            hist_df, _ = assign_context_clusters(hist_df)
+            current_cluster = int(hist_df["context_cluster"].mode()[0])
+    except Exception:
+        logger.warning("Could not determine context cluster; using default %d", current_cluster)
 
     # ------------------------------------------------------
     # CHECK AGAINST GOLDEN

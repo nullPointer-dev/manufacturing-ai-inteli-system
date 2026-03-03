@@ -39,7 +39,7 @@ def analyze_batch_against_golden(batch_row, golden_ranges, model = None, feature
                 # approximate quality delta
                 impact_estimate = np.mean(pred_corrected - pred_current)
 
-            except:
+            except Exception:
                 impact_estimate = 0.0
 
         # severity classification

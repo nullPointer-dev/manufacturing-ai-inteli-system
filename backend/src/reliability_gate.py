@@ -35,5 +35,5 @@ def reliability_filter(
 
         return filtered
 
-    except:
+    except Exception:
         return df
