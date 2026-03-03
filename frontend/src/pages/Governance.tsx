@@ -14,12 +14,12 @@ export function Governance() {
   const [retrainLoading, setRetrainLoading] = useState(false)
   const [retrainResult, setRetrainResult] = useState<{ retrained: boolean; flags: Record<string, boolean> } | null>(null)
 
-  const { data: modelHistory = [] } = useQuery({
+  const { data: modelHistory = [], isError: historyError } = useQuery({
     queryKey: ['model-history'],
     queryFn: governanceApi.getModelHistory,
   })
 
-  const { data: featureImportance = [], isLoading: shapLoading } = useQuery({
+  const { data: featureImportance = [], isLoading: shapLoading, isError: shapError } = useQuery({
     queryKey: ['feature-importance'],
     queryFn: governanceApi.getFeatureImportance,
   })
@@ -57,6 +57,17 @@ export function Governance() {
         </p>
       </div>
 
+      {historyError && (
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+          Failed to load model history. Retrying automatically.
+        </div>
+      )}
+      {shapError && (
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+          Failed to load feature importance data. Retrying automatically.
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-5">
         <Card className="glass-panel border-neon-green/30">
           <CardContent className="p-6">
@@ -74,7 +85,7 @@ export function Governance() {
             <div>
               <p className="text-sm text-muted-foreground mb-1">MAE</p>
               <p className="text-2xl font-bold text-teal-400">
-                {latestVersion ? formatNumber(latestVersion.metrics.mae, 3) : '-'}
+                {latestVersion?.metrics?.mae != null ? formatNumber(latestVersion.metrics.mae, 3) : '-'}
               </p>
             </div>
           </CardContent>
@@ -85,7 +96,7 @@ export function Governance() {
             <div>
               <p className="text-sm text-muted-foreground mb-1">RMSE</p>
               <p className="text-2xl font-bold text-teal-400">
-                {latestVersion ? formatNumber(latestVersion.metrics.rmse, 3) : '-'}
+                {latestVersion?.metrics?.rmse != null ? formatNumber(latestVersion.metrics.rmse, 3) : '-'}
               </p>
             </div>
           </CardContent>
@@ -96,7 +107,7 @@ export function Governance() {
             <div>
               <p className="text-sm text-muted-foreground mb-1">avg R²</p>
               <p className="text-2xl font-bold text-neon-yellow">
-                {latestVersion ? formatNumber(latestVersion.metrics.r2 ?? 0, 4) : '-'}
+                {latestVersion?.metrics?.r2 != null ? formatNumber(latestVersion.metrics.r2, 4) : '-'}
               </p>
             </div>
           </CardContent>
@@ -107,7 +118,7 @@ export function Governance() {
             <div>
               <p className="text-sm text-muted-foreground mb-1">MAPE</p>
               <p className="text-2xl font-bold text-orange-400">
-                {latestVersion?.metrics.mape != null
+                {latestVersion?.metrics?.mape != null
                   ? `${formatNumber(latestVersion.metrics.mape * 100, 2)}%`
                   : '—'}
               </p>
@@ -160,7 +171,9 @@ export function Governance() {
                   <TableRow key={version.model_version}>
                     <TableCell className="font-bold">v{version.model_version}</TableCell>
                     <TableCell className="text-sm">
-                      {format(new Date(version.time), 'MMM dd, yyyy HH:mm')}
+                      {version.time
+                        ? format(new Date(version.time), 'MMM dd, yyyy HH:mm')
+                        : <span className="text-muted-foreground italic">Initial training</span>}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
@@ -177,10 +190,10 @@ export function Governance() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {formatNumber(version.metrics.mae, 3)}
+                      {version.metrics.mae != null ? formatNumber(version.metrics.mae, 3) : '—'}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {formatNumber(version.metrics.rmse, 3)}
+                      {version.metrics.rmse != null ? formatNumber(version.metrics.rmse, 3) : '—'}
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       {version.metrics.r2 != null ? formatNumber(version.metrics.r2, 4) : '—'}
