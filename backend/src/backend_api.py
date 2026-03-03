@@ -1,16 +1,21 @@
 """
 FastAPI Backend Server for Manufacturing AI Frontend Integration
 """
+import logging
+import uuid
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Literal
 import sys
 from pathlib import Path
 import shutil
 import os
+
+logger = logging.getLogger(__name__)
 
 # Add backend/src to path (backend_api.py is in src, so parent is src)
 sys.path.insert(0, str(Path(__file__).parent))
@@ -38,6 +43,16 @@ from integration_api import (
 )
 from golden_updater import _safe_load, HISTORY_FILE
 from industrial_validation import calculate_industrial_validation
+from data_pipeline import invalidate_pipeline_cache, classify_excel_file
+
+
+# =========================================================
+# HELPERS
+# =========================================================
+def _http_error(exc: Exception, status_code: int = 500) -> HTTPException:
+    """Log the real error server-side; return a safe message to the client."""
+    logger.exception("API error: %s", exc)
+    return HTTPException(status_code=status_code, detail="An internal server error occurred.")
 
 # =========================================================
 # Lifespan (replaces deprecated @app.on_event)
@@ -45,14 +60,17 @@ from industrial_validation import calculate_industrial_validation
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("=" * 60)
-    print("Manufacturing AI Intelligence API - Server Starting")
-    print("=" * 60)
-    print(f"API Documentation: http://localhost:8001/docs")
-    print(f"Alternative docs: http://localhost:8001/redoc")
-    print(f"Frontend URL: http://localhost:5173")
-    print(f"API Base: http://localhost:8001/api")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("Manufacturing AI Intelligence API - Server Starting")
+    logger.info("=" * 60)
+    logger.info("API Documentation: http://localhost:8001/docs")
+    logger.info("Alternative docs:  http://localhost:8001/redoc")
+    logger.info("Frontend URL:      http://localhost:5173")
+    logger.info("API Base:          http://localhost:8001/api")
+    logger.info("=" * 60)
+    # Ensure the governance version log exists for any already-trained model
+    from integration_api import _ensure_version_log
+    _ensure_version_log()
     yield
     # Shutdown (nothing to clean up)
 
@@ -89,7 +107,7 @@ class PredictionRequest(BaseModel):
     data: Dict[str, Any]
 
 class OptimizeAutoRequest(BaseModel):
-    mode: str
+    mode: Literal['balanced', 'eco', 'quality', 'yield', 'performance', 'custom'] = 'balanced'
     custom_weights: Optional[Dict[str, float]] = None
 
 class OptimizeTargetRequest(BaseModel):
@@ -97,7 +115,7 @@ class OptimizeTargetRequest(BaseModel):
     min_quality: Optional[float] = None
     min_yield: Optional[float] = None
     min_performance: Optional[float] = None
-    mode: str = "balanced"
+    mode: Literal['balanced', 'eco', 'quality', 'yield', 'performance', 'custom'] = "balanced"
     custom_weights: Optional[Dict[str, float]] = None
 
 class AcceptGoldenRequest(BaseModel):
@@ -114,10 +132,10 @@ class RejectGoldenRequest(BaseModel):
     scenario_key: Optional[str] = None
 
 class IndustrialValidationRequest(BaseModel):
-    electricity_cost: float = 0.12  # $ per kWh
+    electricity_cost: float = 0.12  # cost per kWh (currency matches frontend display)
     batches_per_day: float = 10.0
-    deployment_cost: float = 50000.0  # $ one-time
-    annual_maintenance_cost: float = 5000.0  # $ per year
+    deployment_cost: float = 50000.0  # one-time
+    annual_maintenance_cost: float = 5000.0  # per year
     operating_days_per_year: int = 250
     current_batch_params: Optional[Dict[str, Any]] = None
 
@@ -143,21 +161,15 @@ def predict(request: PredictionRequest):
     try:
         return api_predict(request.data)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.post("/api/optimize_auto")
 def optimize_auto(request: OptimizeAutoRequest):
     """Automatic optimization"""
     try:
-        print(f"Received optimize_auto request: mode={request.mode}, custom_weights={request.custom_weights}")
-        result = api_optimize_auto(request.mode, request.custom_weights)
-        print(f"Optimization result: {result}")
-        return result
+        return api_optimize_auto(request.mode, request.custom_weights)
     except Exception as e:
-        print(f"Optimization error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.post("/api/optimize_target")
 def optimize_target(request: OptimizeTargetRequest):
@@ -172,7 +184,7 @@ def optimize_target(request: OptimizeTargetRequest):
             custom_weights=request.custom_weights,
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.post("/api/accept_golden")
 def accept_golden(request: AcceptGoldenRequest):
@@ -185,7 +197,7 @@ def accept_golden(request: AcceptGoldenRequest):
             request.scenario_key
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.post("/api/reject_golden")
 def reject_golden(request: RejectGoldenRequest):
@@ -199,7 +211,7 @@ def reject_golden(request: RejectGoldenRequest):
             scenario_key=request.scenario_key
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/rejection_history")
 def get_rejection_history():
@@ -207,7 +219,7 @@ def get_rejection_history():
     try:
         return api_get_rejections()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/asset_reliability")
 def get_asset_reliability():
@@ -215,7 +227,7 @@ def get_asset_reliability():
     try:
         return api_get_asset_reliability()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/golden")
 def get_golden():
@@ -223,7 +235,7 @@ def get_golden():
     try:
         return api_get_golden()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/golden_history")
 def get_golden_history():
@@ -232,7 +244,7 @@ def get_golden_history():
         history = _safe_load(HISTORY_FILE, [])
         return history
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/golden_archive")
 def get_golden_archive():
@@ -240,7 +252,7 @@ def get_golden_archive():
     try:
         return api_get_golden_archive()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.post("/api/clear_session")
 def clear_session():
@@ -248,7 +260,7 @@ def clear_session():
     try:
         return api_clear_session()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/model_history")
 def get_model_history():
@@ -256,7 +268,7 @@ def get_model_history():
     try:
         return api_get_model_history()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/feature_importance")
 def get_feature_importance():
@@ -267,15 +279,16 @@ def get_feature_importance():
             return []
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.post("/api/check_retrain")
-def check_retrain():
-    """Check for drift and retrain if needed"""
+async def check_retrain():
+    """Check for drift and retrain if needed (runs in thread pool to avoid blocking)."""
     try:
-        return api_check_retrain()
+        result = await run_in_threadpool(api_check_retrain)
+        return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/system_status")
 def system_status():
@@ -283,7 +296,7 @@ def system_status():
     try:
         return api_system_status()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/batches")
 def get_batches():
@@ -291,7 +304,7 @@ def get_batches():
     try:
         return api_get_batches()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/batch/{batch_id}/analyze")
 def analyze_batch(batch_id: str):
@@ -299,7 +312,7 @@ def analyze_batch(batch_id: str):
     try:
         return api_analyze_batch(batch_id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/dashboard/stats")
 def get_dashboard_stats():
@@ -307,7 +320,7 @@ def get_dashboard_stats():
     try:
         return api_get_dashboard_stats()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/anomalies")
 def get_anomalies():
@@ -315,7 +328,7 @@ def get_anomalies():
     try:
         return api_get_anomalies()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/production/trends")
 def get_production_trends():
@@ -323,7 +336,7 @@ def get_production_trends():
     try:
         return api_get_production_trends()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.post("/api/industrial_validation")
 def industrial_validation(request: IndustrialValidationRequest):
@@ -343,9 +356,7 @@ def industrial_validation(request: IndustrialValidationRequest):
         )
         return result
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 # =========================================================
 # Data File Management Routes
@@ -367,14 +378,14 @@ def get_data_files():
             })
         return {"files": files}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 @app.get("/api/data-files/{filename}")
 def download_data_file(filename: str):
     """Download a specific data file"""
     try:
-        # Security: only allow downloading xlsx files
-        if not filename.endswith('.xlsx'):
+        # Security: only allow downloading xlsx files and prevent path traversal
+        if not filename.endswith('.xlsx') or '/' in filename or '\\' in filename:
             raise HTTPException(status_code=400, detail="Only .xlsx files can be downloaded")
         
         file_path = DATA_DIR / filename
@@ -390,217 +401,139 @@ def download_data_file(filename: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
-def classify_excel_file(file_path: Path) -> str:
+def _upload_sync_worker(
+    content1: bytes, content2: bytes,
+    filename1: str, filename2: str,
+) -> dict:
     """
-    Classify an Excel file as either 'production' or 'process' based on its structure.
-    
-    Process files have:
-    - Multiple sheets (one per batch, named like "Batch_*")
-    - Columns: Time_Minutes, Phase, Temperature_C, etc.
-    
-    Production files have:
-    - Single sheet (or fewer sheets)
-    - Columns: Granulation_Time, Binder_Amount, Drying_Temp, etc.
+    All CPU/IO-bound work for a file upload: classification, file copy, pipeline
+    rebuild, and model retrain.  Runs inside run_in_threadpool so the event
+    loop is never blocked.
     """
-    import pandas as pd
-    
+    upload_id = uuid.uuid4().hex
+    backup_dir = DATA_DIR / "backups"
+    backup_dir.mkdir(exist_ok=True)
+    temp_dir = DATA_DIR / "temp"
+    temp_dir.mkdir(exist_ok=True)
+
+    temp_file1 = temp_dir / f"temp1_{upload_id}.xlsx"
+    temp_file2 = temp_dir / f"temp2_{upload_id}.xlsx"
+
+    # Write raw bytes to temporary paths
+    temp_file1.write_bytes(content1)
+    temp_file2.write_bytes(content2)
+
+    # Backup existing data files so we can roll back on error
+    for old_file in DATA_DIR.glob("*.xlsx"):
+        backup_path = backup_dir / f"{old_file.stem}_{upload_id}{old_file.suffix}"
+        shutil.copy2(old_file, backup_path)
+
+    def _cleanup_temp():
+        for f in (temp_file1, temp_file2):
+            try:
+                f.unlink(missing_ok=True)
+            except Exception:
+                pass
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    # --- Classify -------------------------------------------------------
     try:
-        # Read all sheet names - use context manager to ensure file is closed
-        with pd.ExcelFile(file_path) as xl_file:
-            sheet_names = xl_file.sheet_names
-            
-            # Process files typically have multiple sheets (one per batch)
-            if len(sheet_names) > 3:
-                # Check if sheets are named like "Batch_*"
-                batch_sheets = [s for s in sheet_names if s.startswith('Batch_') or 'batch' in s.lower()]
-                if len(batch_sheets) > 2:
-                    return 'process'
-            
-            # Read first sheet to check columns
-            first_sheet = pd.read_excel(xl_file, sheet_name=0)
-            columns = set(first_sheet.columns)
-        
-        # Process data indicators
-        process_indicators = {'Time_Minutes', 'Phase', 'Temperature_C', 'Pressure_Bar', 'Power_Consumption_kW'}
-        
-        # Production data indicators
-        production_indicators = {'Granulation_Time', 'Binder_Amount', 'Drying_Temp', 'Compression_Force', 'Machine_Speed'}
-        
-        # Count how many indicators match
-        process_matches = len(process_indicators.intersection(columns))
-        production_matches = len(production_indicators.intersection(columns))
-        
-        if process_matches > production_matches:
-            return 'process'
-        elif production_matches > process_matches:
-            return 'production'
-        
-        # Fallback: if multiple sheets, likely process data
-        if len(sheet_names) > 1:
-            return 'process'
-        else:
-            return 'production'
-            
+        type1 = classify_excel_file(temp_file1)
+        type2 = classify_excel_file(temp_file2)
     except Exception as e:
-        raise Exception(f"Failed to classify file {file_path}: {str(e)}")
+        _cleanup_temp()
+        logger.exception("File classification failed: %s", e)
+        raise HTTPException(
+            status_code=400,
+            detail="File classification failed. Ensure one production and one process file are uploaded.",
+        )
+
+    if type1 == type2:
+        _cleanup_temp()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Both files appear to be {type1} data. Please upload one production and one process file.",
+        )
+
+    if type1 == "production":
+        production_temp, process_temp = temp_file1, temp_file2
+        production_filename, process_filename = filename1, filename2
+    else:
+        production_temp, process_temp = temp_file2, temp_file1
+        production_filename, process_filename = filename2, filename1
+
+    # --- Copy to canonical paths ----------------------------------------
+    try:
+        shutil.copy2(str(production_temp), str(DATA_DIR / "batch_production_data.xlsx"))
+        shutil.copy2(str(process_temp),    str(DATA_DIR / "batch_process_data.xlsx"))
+    finally:
+        _cleanup_temp()
+
+    # --- Reload system --------------------------------------------------
+    try:
+        from data_pipeline import build_pipeline
+        from train_model import train_and_save_model
+
+        invalidate_pipeline_cache()
+        model_dir = Path(__file__).resolve().parent.parent / "models"
+        for stale_file in ["model_versions.json", "golden_session.json", "drift_baseline.json", "scaling_params.json"]:
+            stale_path = model_dir / stale_file
+            if stale_path.exists():
+                stale_path.unlink()
+
+        df = build_pipeline()
+        train_and_save_model()
+
+        return {
+            "success": True,
+            "message": "Files uploaded and system reloaded successfully",
+            "production_file": production_filename,
+            "process_file": process_filename,
+            "batches_loaded": len(df),
+            "classified_as": {filename1: type1, filename2: type2},
+        }
+    except Exception as e:
+        # Restore backups
+        for backup_file in backup_dir.glob(f"*_{upload_id}.xlsx"):
+            original_name = backup_file.name.replace(f"_{upload_id}", "")
+            shutil.copy2(backup_file, DATA_DIR / original_name)
+        invalidate_pipeline_cache()
+        logger.exception("Failed to reload system with new data: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="Files uploaded but system reload failed. Previous data has been restored.",
+        )
+
 
 @app.post("/api/data-files/upload")
 async def upload_data_files(
     file1: UploadFile = File(...),
-    file2: UploadFile = File(...)
+    file2: UploadFile = File(...),
 ):
     """Upload new data files - automatically classifies production vs process data"""
     try:
-        # Validate file types
-        if not file1.filename.endswith('.xlsx'):
+        if not file1.filename.endswith(".xlsx"):
             raise HTTPException(status_code=400, detail="First file must be .xlsx")
-        if not file2.filename.endswith('.xlsx'):
+        if not file2.filename.endswith(".xlsx"):
             raise HTTPException(status_code=400, detail="Second file must be .xlsx")
-        
-        # Create backup of old files
-        backup_dir = DATA_DIR / "backups"
-        backup_dir.mkdir(exist_ok=True)
-        
-        import time
-        timestamp = int(time.time())
-        
-        for old_file in DATA_DIR.glob("*.xlsx"):
-            backup_path = backup_dir / f"{old_file.stem}_{timestamp}{old_file.suffix}"
-            shutil.copy2(old_file, backup_path)
-        
-        # Save files temporarily to classify them
-        temp_dir = DATA_DIR / "temp"
-        temp_dir.mkdir(exist_ok=True)
-        
-        temp_file1 = temp_dir / f"temp1_{timestamp}.xlsx"
-        temp_file2 = temp_dir / f"temp2_{timestamp}.xlsx"
-        
-        # Write temporary files
-        with open(temp_file1, "wb") as f:
-            content = await file1.read()
-            f.write(content)
-        
-        with open(temp_file2, "wb") as f:
-            content = await file2.read()
-            f.write(content)
-        
-        # Classify the files
-        try:
-            type1 = classify_excel_file(temp_file1)
-            type2 = classify_excel_file(temp_file2)
-            
-            # Force garbage collection to release file handles
-            import gc
-            gc.collect()
-            
-            # Ensure we have one of each type
-            if type1 == type2:
-                # Clean up temp files
-                temp_file1.unlink()
-                temp_file2.unlink()
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Both files appear to be {type1} data. Please upload one production and one process file."
-                )
-            
-            # Determine which is which
-            if type1 == 'production':
-                production_temp = temp_file1
-                process_temp = temp_file2
-                production_filename = file1.filename
-                process_filename = file2.filename
-            else:
-                production_temp = temp_file2
-                process_temp = temp_file1
-                production_filename = file2.filename
-                process_filename = file1.filename
-            
-            # Save to final locations with standard names
-            production_path = DATA_DIR / "batch_production_data.xlsx"
-            process_path = DATA_DIR / "batch_process_data.xlsx"
-            
-            # Use copy instead of move to avoid file locking issues
-            shutil.copy2(str(production_temp), str(production_path))
-            shutil.copy2(str(process_temp), str(process_path))
-            
-            # Clean up temp files
-            production_temp.unlink()
-            process_temp.unlink()
-            
-            # Clean up temp directory
-            if temp_dir.exists():
-                shutil.rmtree(temp_dir)
-                
-        except HTTPException:
-            raise
-        except Exception as e:
-            # Force garbage collection before cleanup
-            import gc
-            gc.collect()
-            
-            # Clean up temp files on error
-            try:
-                if temp_file1.exists():
-                    temp_file1.unlink()
-                if temp_file2.exists():
-                    temp_file2.unlink()
-                if temp_dir.exists():
-                    shutil.rmtree(temp_dir)
-            except Exception:
-                pass  # Ignore cleanup errors
-            
-            raise HTTPException(
-                status_code=500,
-                detail=f"File classification failed: {str(e)}"
-            )
-        
-        # Reload the system with new data
-        try:
-            from data_pipeline import build_pipeline
-            from train_model import train_and_save_model
 
-            # --- Reset stale governance state from the old dataset ---
-            model_dir = Path(__file__).resolve().parent.parent / "models"
-            for stale_file in ["model_versions.json", "golden_session.json", "drift_baseline.json"]:
-                stale_path = model_dir / stale_file
-                if stale_path.exists():
-                    stale_path.unlink()
+        # Read file contents in the async context; all subsequent heavy work
+        # is handed off to a thread so the event loop is never blocked.
+        content1 = await file1.read()
+        content2 = await file2.read()
 
-            # Rebuild data pipeline
-            df = build_pipeline()
-            
-            # Retrain models
-            train_and_save_model()
-            
-            return {
-                "success": True,
-                "message": "Files uploaded and system reloaded successfully",
-                "production_file": production_filename,
-                "process_file": process_filename,
-                "batches_loaded": len(df),
-                "classified_as": {
-                    file1.filename: type1,
-                    file2.filename: type2
-                }
-            }
-        except Exception as e:
-            # If loading fails, restore backups
-            for backup_file in backup_dir.glob(f"*_{timestamp}.xlsx"):
-                original_name = backup_file.name.replace(f"_{timestamp}", "")
-                original_path = DATA_DIR / original_name
-                shutil.copy2(backup_file, original_path)
-            
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to reload system with new data: {str(e)}"
-            )
-            
+        return await run_in_threadpool(
+            _upload_sync_worker,
+            content1, content2,
+            file1.filename, file2.filename,
+        )
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_error(e)
 
 # =========================================================
 if __name__ == "__main__":

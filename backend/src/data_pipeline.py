@@ -1,9 +1,21 @@
+import logging
 import pandas as pd
 import numpy as np
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
+
+# =========================================================
+# MODULE-LEVEL PIPELINE CACHE (invalidated on file mtime change)
+# =========================================================
+_pipeline_cache: dict = {
+    "df": None,
+    "mtime_production": None,
+    "mtime_process": None,
+}
 
 
 # =========================================================
@@ -43,9 +55,9 @@ def load_data(data_folder=DATA_DIR):
     production_df["Batch_ID"] = production_df["Batch_ID"].astype(str)
     process_df["Batch_ID"] = process_df["Batch_ID"].astype(str)
 
-    print("Production rows:", len(production_df))
-    print("Process rows:", len(process_df))
-    print("Unique batches:", process_df["Batch_ID"].nunique())
+    logger.debug("Production rows: %d", len(production_df))
+    logger.debug("Process rows: %d", len(process_df))
+    logger.debug("Unique batches: %d", process_df["Batch_ID"].nunique())
 
     return production_df, process_df
 
@@ -115,6 +127,25 @@ def clean_data(df):
 # PIPELINE
 # =========================================================
 def build_pipeline(data_folder=DATA_DIR):
+    data_path = Path(data_folder)
+    prod_file = data_path / "batch_production_data.xlsx"
+    proc_file = data_path / "batch_process_data.xlsx"
+
+    # --- cache invalidation by file modification time ---
+    try:
+        mtime_prod = prod_file.stat().st_mtime if prod_file.exists() else None
+        mtime_proc = proc_file.stat().st_mtime if proc_file.exists() else None
+    except OSError:
+        mtime_prod = mtime_proc = None
+
+    cache = _pipeline_cache
+    if (
+        cache["df"] is not None
+        and cache["mtime_production"] == mtime_prod
+        and cache["mtime_process"] == mtime_proc
+        and data_folder == DATA_DIR          # only cache the default path
+    ):
+        return cache["df"]
 
     production_df, process_df = load_data(data_folder)
 
@@ -125,10 +156,76 @@ def build_pipeline(data_folder=DATA_DIR):
     from feature_engineering import engineer_features
     final_df = engineer_features(final_df)
 
-    print("Final batches:", len(final_df))
-    print(final_df["total_energy"].describe())
+    logger.debug("Final batches: %d", len(final_df))
+    logger.debug("total_energy stats: min=%.2f max=%.2f mean=%.2f",
+                 final_df["total_energy"].min(),
+                 final_df["total_energy"].max(),
+                 final_df["total_energy"].mean())
+
+    # store in cache
+    if data_folder == DATA_DIR:
+        cache["df"] = final_df
+        cache["mtime_production"] = mtime_prod
+        cache["mtime_process"] = mtime_proc
 
     return final_df
+
+
+def invalidate_pipeline_cache():
+    """Call this after new data files are uploaded so the next call rebuilds."""
+    _pipeline_cache["df"] = None
+    _pipeline_cache["mtime_production"] = None
+    _pipeline_cache["mtime_process"] = None
+
+
+# =========================================================
+# FILE CLASSIFICATION
+# =========================================================
+def classify_excel_file(file_path: Path) -> str:
+    """
+    Classify an Excel file as either 'production' or 'process' based on its structure.
+
+    Process files have:
+    - Multiple sheets (one per batch, named like "Batch_*")
+    - Columns: Time_Minutes, Phase, Temperature_C, etc.
+
+    Production files have:
+    - Single sheet (or fewer sheets)
+    - Columns: Granulation_Time, Binder_Amount, Drying_Temp, etc.
+
+    Returns 'production' or 'process'.
+    Raises Exception if the file cannot be read.
+    """
+    try:
+        with pd.ExcelFile(file_path) as xl_file:
+            sheet_names = xl_file.sheet_names
+
+            if len(sheet_names) > 3:
+                batch_sheets = [
+                    s for s in sheet_names
+                    if s.startswith("Batch_") or "batch" in s.lower()
+                ]
+                if len(batch_sheets) > 2:
+                    return "process"
+
+            first_sheet = pd.read_excel(xl_file, sheet_name=0)
+            columns = set(first_sheet.columns)
+
+        process_indicators = {"Time_Minutes", "Phase", "Temperature_C", "Pressure_Bar", "Power_Consumption_kW"}
+        production_indicators = {"Granulation_Time", "Binder_Amount", "Drying_Temp", "Compression_Force", "Machine_Speed"}
+
+        process_matches = len(process_indicators.intersection(columns))
+        production_matches = len(production_indicators.intersection(columns))
+
+        if process_matches > production_matches:
+            return "process"
+        if production_matches > process_matches:
+            return "production"
+
+        return "process" if len(sheet_names) > 1 else "production"
+
+    except Exception as exc:
+        raise Exception(f"Failed to classify file {file_path}: {exc}") from exc
 
 
 if __name__ == "__main__":
